@@ -1,0 +1,22 @@
+# R project and user data files
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.rds
+
+# R files that tend to be large
+.gri
+.grd
+.tiff
+
+# For targets
+_targets/
+
+# AJA data and results folders
+/data
+/results
+
+
+# For bookdown
+docs/.nojekyll
