@@ -21,11 +21,11 @@ _targets/
 docs/.nojekyll
 
 # For Rclone/Docker/Digital Ocean
-.config/
-.local/
+.config/*
+.local/*
 .bash_history
 .bash_logout
-.bachrc
+.bacsrc
 .gitconfig
 .profile
 
