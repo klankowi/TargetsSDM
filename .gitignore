@@ -25,7 +25,7 @@ docs/.nojekyll
 .local/*
 .bash_history
 .bash_logout
-.bacsrc
+.bashrc
 .gitconfig
 .profile
 
