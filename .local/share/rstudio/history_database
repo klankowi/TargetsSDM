@@ -1,0 +1,272 @@
+1635281283051:here::here()
+1635282348691:# _targets.R
+1635282348693:# Libraries
+1635282348694:# install.packages("devtools")
+1635282348695:library(devtools)
+1635282349332:# devtools::install_version("Matrix", version = "1.2.8")
+1635282349333:library(Matrix)
+1635282350214:# devtools::install_version("TMB", "1.7.18")
+1635282350214:# devtools::install_github("James-Thorson-NOAA/FishStatsUtils", force = TRUE, upgrade = FALSE)
+1635282350214:# devtools::install_github("James-Thorson-NOAA/VAST", ref = "main", force = TRUE, upgrade = FALSE)
+1635282350215:library(VAST)
+1635282350512:library(FishStatsUtils)
+1635282350513:library(tidyverse)
+1635282352130:library(lubridate)
+1635282352142:library(sf)
+1635282352584:library(raster)
+1635282353329:library(here)
+1635282353341:library(targets)
+1635282353499:library(tarchetypes)
+1635282353524:library(patchwork)
+1635282353572:library(gifski)
+1635282353589:library(akima)
+1635282353606:library(splines)
+1635282353618:library(parallel)
+1635282353635:library(doFuture)
+1635282353751:library(tools)
+1635282436069:# Functions
+1635282436071:manual<- FALSE
+1635282436074:if(manual){
+1635282436075:source(here::here("scratch/aja/TargetsSDM/R/dfo_functions.R"))
+1635282436075:source(here::here("scratch/aja/TargetsSDM/R/nmfs_functions.R"))
+1635282436076:source(here::here("scratch/aja/TargetsSDM/R/combo_functions.R"))
+1635282436077:source(here::here("scratch/aja/TargetsSDM/R/enhance_r_funcs.R"))
+1635282436078:source(here::here("scratch/aja/TargetsSDM/R/vast_functions.R"))
+1635282436079:} else {
+1635282436081:source(here::here("R/dfo_functions.R"))
+1635282436082:source(here::here("R/nmfs_functions.R"))
+1635282436082:source(here::here("R/combo_functions.R"))
+1635282436083:source(here::here("R/enhance_r_funcs.R"))
+1635282436084:source(here::here("R/vast_functions.R"))
+1635282436084:}
+1635282448337:# Targets set up
+1635282448337:options(tidyverse.quiet = TRUE)
+1635282448338:tar_option_set(packages = c("Matrix", "TMB", "FishStatsUtils", "VAST", "tidyverse", "lubridate", "sf", "raster", "here", "tools"))
+1635282448342:# Model fitting stuffs
+1635282448343:nmfs_species_code<- 301
+1635282448343:nice_category_names<- "American lobster"
+1635282448344:depth_cut<- 400
+1635282448344:fit_year_min<- 1985
+1635282448344:fit_year_max<- 2015
+1635282448345:fit_seasons<- c("SPRING", "SUMMER", "FALL")
+1635282448345:#fit_seasons<- c("FALL")
+1635282448345:pred_years <- 2100
+1635282448346:gam_degree<- 3
+1635282448346:hab_formula<- ~ Season + Year_Cov + bs(Depth, degree = 3, intercept = FALSE) + bs(SST_seasonal, degree = 3, intercept = FALSE) + bs(BT_seasonal, degree = 3, intercept = FALSE) # Seasonal
+1635282448346:#hab_formula<- ~ bs(Depth, degree = 2, intercept = FALSE) + bs(SST_seasonal, degree = 2, intercept = FALSE) # Annnual
+1635282448347:hab_env_coeffs_n<- length(attributes(terms.formula(hab_formula))$term.labels)-2 # Seasonal
+1635282448350:#hab_env_coeffs_n<- length(attributes(terms.formula(hab_formula))$term.labels)-1 # Annual
+1635282448350:# hab_env_coeffs_n<- length(attributes(terms.formula(hab_formula))$term.labels) # Annual habitat covs only
+1635282448351:field_config<- c("Omega1" = 1, "Epsilon1" = 1, "Omega2" = 1, "Epsilon2" = 1)
+1635282448351:rho_config<- c("Beta1" = 2, "Beta2" = 2, "Epsilon1" = 2, "Epsilon2" = 2)
+1635282740259:here::here("data/supporting", "land_shapefile/ne_50m_land.shp")
+1635282795855:predict_covariates_raw_mk_dir
+1635283506430:##########
+1635283506431:##### Executing _targets.R
+1635283506432:##########
+1635283506434:library(targets)
+1635283506434:library(parallel)
+1635283506435:library(doFuture)
+1635283506436:library(tictoc)
+1635283506458:#
+1635283506459:cores_avail<- detectCores()
+1635283506466:registerDoFuture()
+1635283506468:plan(multisession, workers = cores_avail-2)
+1635283506653:# Clean everything?
+1635283506670:clean_start<- TRUE
+1635283506672:if(clean_start){
+1635283506673:tar_destroy()
+1635283506675:}
+1635283520586:# First, need to be in the right working directory
+1635283520586:getwd()
+1635283538280:# Checking calls
+1635283538281:tar_manifest(fields = "command")
+1635283542970:# Graph
+1635283542970:# tar_glimpse()
+1635283542970:# tar_visnetwork(label = "time", reporter = "forecast", targets_only = TRUE)
+1635283542971:# Run it
+1635283542971:tic()
+1635283542972:tar_make()
+1635283610621:toc()
+1635284069362:# Checking calls
+1635284069363:tar_manifest(fields = "command")
+1635284074122:# Graph
+1635284074123:# tar_glimpse()
+1635284074123:# tar_visnetwork(label = "time", reporter = "forecast", targets_only = TRUE)
+1635284074124:# Run it
+1635284074124:tic()
+1635284074126:tar_make()
+1635284079524:toc()
+1635284587408:# Checking calls
+1635284587409:tar_manifest(fields = "command")
+1635284591845:# Graph
+1635284591846:# tar_glimpse()
+1635284591846:# tar_visnetwork(label = "time", reporter = "forecast", targets_only = TRUE)
+1635284591847:# Run it
+1635284591847:tic()
+1635284591848:tar_make()
+1635284809528:toc()
+1635284985654:# Checking calls
+1635284985655:tar_manifest(fields = "command")
+1635284992109:# Graph
+1635284992110:# tar_glimpse()
+1635284992111:# tar_visnetwork(label = "time", reporter = "forecast", targets_only = TRUE)
+1635284992112:# Run it
+1635284992113:tic()
+1635284992117:tar_make()
+1635285177755:toc()
+1635285339981:setwd(here::here())
+1635285339992:tar_load(dynamic_covariates_stack)
+1635285361060:t_summ = "seasonal"
+1635285361060:t_position = NULL
+1635285361062:tar_load(all_tows_with_static_covs)
+1635285361239:sf_points = all_tows_with_static_covs
+1635285361240:date_col_name = "DATE"
+1635285361242:df_sf ="df"
+1635285361242:out_dir = here::here("data/combined")
+1635285394239:# For each of the covariate layers in `dynamic_covariates_list` we are going to run our `dynamic_2d_extract` function. I think this might require some creative manipulating of the `sf_points` so we don't lose covariates as we move through them...
+1635285394240:sf_points_run<- sf_points
+1635285399685:i = 1
+1635285403223:stack_use<- dynamic_covariates_list[[i]]
+1635285415451:dynamic_covariates_list = dynamic_covariates_stack
+1635285421549:stack_use<- dynamic_covariates_list[[i]]
+1635285437588:# Custom rowMeans like function
+1635285437588:rowMeans_cust<- function(row_id, start_col, end_col, full_data){
+1635285437590:# If daily, then start_col and end_col are equal, so just use one of them
+1635285437590:if(start_col == end_col){
+1635285437590:out<- full_data[row_id, start_col]
+1635285437591:return(out)
+1635285437591:} else {
+1635285437592:out<- rowMeans(full_data[row_id,start_col:end_col])
+1635285437592:return(out)
+1635285437593:}
+1635285437593:}
+1635285441618:rast_ts_stack = stack_use
+1635285441619:stack_name = names(dynamic_covariates_list)[[i]]
+1635285441620:t_summ = t_summ
+1635285441621:t_position = t_position
+1635285441622:sf_points = sf_points_run
+1635285441622:date_col_name = date_col_name
+1635285441624:df_sf = "sf"
+1635285447485:# A few checks...
+1635285447486:# If t_summ is a character, does it match one of "daily", monthly", "seasonal", or "annual" AND is t_position set to NULL?
+1635285447487:if(is.character(t_summ)){
+1635285447487:t_summ_check<- t_summ %in% c("daily", "monthly", "seasonal", "annual") & is.null(t_position)
+1635285447488:if(!t_summ_check){
+1635285447489:print("Check 't_summ' argument and 't_position'. 't_summ' must be one of 'daily', monthly', 'seasonal' or 'annual' and 't_position' = NULL")
+1635285447489:stop()
+1635285447490:}
+1635285447491:}
+1635285447492:# Check t_position argument
+1635285447493:t_position_check<- is.null(t_position) || t_position %in% c("past", "saddle", "future")
+1635285447494:if(!t_position_check){
+1635285447494:print("Check 't_position' argument. Must be one of 'past', 'saddle' or 'future'")
+1635285447495:stop()
+1635285447496:}
+1635285454049:# Finally, do the projections match?
+1635285454049:if(!st_crs(rast_ts_stack) == st_crs(sf_points)){
+1635285454050:print("Check that projection in raster stack and spatial points match")
+1635285454052:stop()
+1635285454052:}
+1635285459982:# To do the matching for seasons, need some type of look up table.
+1635285459983:month_season_table<- data.frame("Month" = str_pad(seq(from = 1, to = 12, by = 1), 2, "left", 0), "Season" = c("Winter", "Winter", "Spring", "Spring", "Spring", "Summer", "Summer", "Summer", "Fall", "Fall", "Fall", "Winter"))
+1635285459997:# Rename the date column to be "EST_DATE" to match the function set up, This gets a bit tricky if we are running things in sequence. In other words, maybe we ran things through for SST and then want to do Chl. When we pass in the dataframe, "EST_DATE" may already exist. Going to try something else for now and pass in {{date_col_name}} below whenever EST_DATE is used
+1635285459998:# sf_points<- sf_points %>%
+1635285459998:#   rename(., "EST_DATE" := {{date_col_name}})
+1635285459999:# Full extraction, all points and layers -----------------------------------------------------------
+1635285459999:sf_extract<- data.frame(raster::extract(rast_ts_stack, sf_points))
+1635285520635:# Getting the values we want from full extraction -------------------------
+1635285520635:# This leaves us with a data frame where the rows are the sf_points and then the columns are the covariate value for a given location for each of the layers (i.e., time steps) in the stack. To start with calculating any summary, we first need to know the which column provides an exact match between the time of the observation and the time in the raster stack. Then, depending on if it is a past, saddle, or future, and how many columns are specified by t_pos, we can average the necessary columns.
+1635285520636:colnames(sf_extract)<- gsub("[.]", "-", gsub("X", "", colnames(sf_extract)))
+1635285520642:# Now, accounting for the different windows and positions. As mentioned earlier, this is going to be completely different depending on if t_summ is a character sting ("daily", "monthly", "seasonal", "annual") or if it is a numeric integer. So, here comes that split...
+1635285520642:summ_df_list<- vector("list", length(t_summ))
+1635285531370:if(is.character(t_summ)){
+1635285531372:for(i in seq_along(t_summ)){
+1635285531373:# Get t_summ for this iteration
+1635285531374:t_summ_use<- t_summ[i]
+1635285531374:# Create a data frame to store the start and end...
+1635285531375:summ_df<- data.frame("Point" = 1:nrow(sf_extract), "Date_Match" = rep(NA, nrow(sf_extract)), "Start_Summ" = rep(NA, nrow(sf_extract)), "End_Summ" = rep(NA, nrow(sf_extract)))
+1635285531376:# Get the exact date match
+1635285531377:sf_points_date_col<- as.character(st_drop_geometry(sf_points[,{{date_col_name}}])[,1])
+1635285531378:sf_points_date_col<- ymd(sf_points_date_col)
+1635285531378:# May need to revisit this at some point, but for now, shouldn't influence the results..
+1635285531379:summ_df$Date_Match<- match(sf_points_date_col, as.Date(colnames(sf_extract)))
+1635285531380:# Column index start based on t_summ_use. Seasonal needs more finagling.
+1635285531380:if(t_summ_use != "seasonal"){
+1635285531380:summ_df$Start_Summ<- switch(t_summ_use,
+1635285531381:"daily" = summ_df$Date_Match,
+1635285531381:"monthly" = match(format(sf_points_date_col, "%Y-%m"), format(rast_ts_match, "%Y-%m")),
+1635285531382:"annual" = match(format(sf_points_date_col, "%Y"), format(rast_ts_match, "%Y")))
+1635285531382:# Now index end
+1635285531383:summ_df$End_Summ<- switch(t_summ_use,
+1635285531383:"daily" = summ_df$Date_Match,
+1635285531384:"monthly" = sapply(format(sf_points_date_col, "%Y-%m"), FUN = function(x) max(which(x == format(rast_ts_match, "%Y-%m")))),
+1635285531384:"annual" = sapply(format(sf_points_date_col, "%Y"), FUN = function(x) max(which(x == format(rast_ts_match, "%Y")))))
+1635285531385:} else {
+1635285531385:# Season bits, need a year - season combo for both the points AND columns of sf_extract.
+1635285531386:colnames_orig<- as.Date(gsub("X", "", gsub("[.]", "-", colnames(sf_extract))))
+1635285531386:colnames_season<- month_season_table$Season[match(format(colnames_orig, "%m"), month_season_table$Month)]
+1635285531387:colnames_season_match<- paste(format(colnames_orig, "%Y"), colnames_season, sep = "-")
+1635285531388:sf_points$Season_Match<- paste(format(sf_points_date_col, "%Y"), month_season_table$Season[match(format(sf_points_date_col, "%m"), month_season_table$Month)], sep = "-")
+1635285531389:# Start index
+1635285531390:summ_df$Start_Summ<- match(sf_points$Season_Match, colnames_season_match)
+1635285531391:# Now index end
+1635285531391:summ_df$End_Summ<- sapply(sf_points$Season_Match, FUN = function(x) max(which(x == colnames_season_match)))
+1635285531392:}
+1635285531393:# Deal with the "-Inf" indices, arising when there are no matches for "max"
+1635285531393:summ_df[summ_df == -Inf]<- NA
+1635285531394:# Store it
+1635285531395:summ_df_list[[i]]<- summ_df
+1635285531395:names(summ_df_list)[i]<- paste(stack_name, t_summ_use, sep = "_")
+1635285531396:}
+1635285531396:}
+1635285537255:warnings()
+1635285569393:names(summ_df_list)
+1635285580035:summary(summ_df_list)
+1635285584122:summary(summ_df_list[[1]])
+1635285598784:# Subsetting full extraction, taking row means across the columns signaled by Start_Summ and End_Summ. First, need to drop any NAs as those are going to through an error in the indexing AND any negative index numbers (this would indicate a situation where the date of observation falls during the beginning of the dynamic variable time series, such that there isn't data for the prior or saddle option t_summ_use time steps prior to the observation)
+1635285598785:# Has to be a better option for how to do this, but a loop for now..
+1635285598786:# Adding Point ID column, used for merging
+1635285598788:sf_points$Point<- seq(from = 1, to = nrow(sf_points))
+1635285598793:for(j in seq_along(summ_df_list)){
+1635285598795:summ_df_comp<- summ_df_list[[j]] %>%
+1635285598796:drop_na(., Start_Summ, End_Summ) %>%
+1635285598796:dplyr::filter(., Start_Summ > 0)
+1635285598797:# Calculate mean given start and end column index of extraction file and row based on observation point ID
+1635285598798:sf_extract_mean<- summ_df_comp %>%
+1635285598798:mutate(., "Summ_Val" = pmap_dbl(list(row_id = Point, start_col = Start_Summ, end_col = End_Summ, full_data = list(sf_extract)), rowMeans_cust))
+1635285598799:# Don't need to keep all the columns, just point and summ_val. Rename to match stack and t_summ
+1635285598800:point_mean<- sf_extract_mean %>%
+1635285598800:dplyr::select(., Point, Summ_Val)
+1635285598801:names(point_mean)[2]<- names(summ_df_list)[j]
+1635285598802:# Join back to original trawl sf_points
+1635285598802:sf_points<- sf_points %>%
+1635285598803:left_join(., point_mean, by = c("Point" = "Point")) %>%
+1635285598804:dplyr::select(., -Point)
+1635285598804:}
+1635285614183:str(sf_points)
+1635285626767:summary(sf_points)
+1635285686972:setwd(here::here())
+1635285686976:tar_load(dynamic_covariates_stack)
+1635285687511:dynamic_covariates_list = dynamic_covariates_stack
+1635285687511:t_summ = "seasonal"
+1635285687512:t_position = NULL
+1635285687512:tar_load(all_tows_with_static_covs)
+1635285687631:sf_points = all_tows_with_static_covs
+1635285687631:date_col_name = "DATE"
+1635285687632:df_sf ="df"
+1635285687632:out_dir = here::here("data/combined")
+1635285694140:# For each of the covariate layers in `dynamic_covariates_list` we are going to run our `dynamic_2d_extract` function. I think this might require some creative manipulating of the `sf_points` so we don't lose covariates as we move through them...
+1635285694141:sf_points_run<- sf_points
+1635285694143:for(i in seq_along(dynamic_covariates_list)){
+1635285694143:stack_use<- dynamic_covariates_list[[i]]
+1635285694144:temp_tows_with_covs<- dynamic_2d_extract(rast_ts_stack = stack_use, stack_name = names(dynamic_covariates_list)[[i]], t_summ = t_summ, t_position = t_position, sf_points = sf_points_run, date_col_name = date_col_name, df_sf = "sf")
+1635285694145:# If there are more files to go, update sf_points_run
+1635285694146:if(i < length(dynamic_covariates_list)){
+1635285694147:sf_points_run<- temp_tows_with_covs
+1635285694148:}
+1635285694149:# If "last" one, good to return it
+1635285694149:if(i == length(dynamic_covariates_list)){
+1635285694150:tows_with_covs_out<- temp_tows_with_covs
+1635285694151:}
+1635285694151:}
