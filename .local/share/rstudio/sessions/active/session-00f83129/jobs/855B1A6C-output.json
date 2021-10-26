@@ -1,0 +1,8 @@
+[1,"Installing 'tarchetypes' ...\n"]
+[2,"Installing package into ‘/usr/local/lib/R/site-library’\n(as ‘lib’ is unspecified)\n"]
+[2,"trying URL 'https://packagemanager.rstudio.com/cran/__linux__/focal/2021-03-30/src/contrib/tarchetypes_0.1.1.tar.gz'\n"]
+[2,"Content type 'binary/octet-stream' length 495741 bytes (484 KB)\n===="]
+[2,"==================="]
+[2,"======================"]
+[2,"=====\ndownloaded 484 KB\n\n"]
+[2,"* installing *binary* package ‘tarchetypes’ ...\n* DONE (tarchetypes)\n\nThe downloaded source packages are in\n\t‘/tmp/Rtmp3lpEPr/downloaded_packages’\n\n\n✔ Package 'tarchetypes' successfully installed.\n"]
