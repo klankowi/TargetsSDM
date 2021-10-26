@@ -17,6 +17,15 @@ _targets/
 /data
 /results
 
-
 # For bookdown
 docs/.nojekyll
+
+# For Rclone/Docker/Digital Ocean
+.config/
+.local/
+.bash_history
+.bash_logout
+.bachrc
+.gitconfig
+.profile
+
