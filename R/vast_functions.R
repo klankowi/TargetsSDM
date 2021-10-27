@@ -1819,6 +1819,7 @@ vast_read_index_shapes<- function(index_shapefiles_dir){
   
   if(FALSE){
     index_shapefiles_dir<- "~/GitHub/sdm_workflow/scratch/aja/TargetsSDM/data/supporting/index_shapefiles/"
+    index_shapefiles_dir<- "~/data/supporting/index_shapefiles/"
   }
   
   index_files<- list.files(index_shapefiles_dir, pattern = ".shp", full.names = TRUE)

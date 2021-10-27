@@ -64,7 +64,7 @@ rho_config<- c("Beta1" = 2, "Beta2" = 2, "Epsilon1" = 2, "Epsilon2" = 2)
 
 catch_formula<- ~ factor(Survey)
 #catch_formula<- ~0
-strata_use<- data.frame("STRATA" = c("NMFS_and_DFO", "DFO", "NMFS", "Scotian_Shelf", "Georges_Bank", "Gulf_of_Maine", "Southern_New_England", "Mid_Atlantic_Bight"))
+strata_use<- data.frame("STRATA" = c("DFO", "GoM", "NMFS_and_DFO", "NMFS", "SNE_and_MAB"))
 #strata_use<- data.frame("STRATA" = c("NMFS", "DFO"))
 #strata_use<- data.frame("STRATA" = c("NMFS"))
 
