@@ -11,7 +11,7 @@ registerDoFuture()
 plan(multisession, workers = cores_avail-2)
 
 # Clean everything?
-clean_start<- TRUE
+clean_start<- FALSE
 if(clean_start){
   tar_destroy()
 }
@@ -27,6 +27,11 @@ tar_manifest(fields = "command")
 tic()
 tar_make()
 toc()
+
+# Sync with remote...
+system(paste("rclone copy ", "'/home/aallyn/results'", " 'TargetsSDM:Work/TargetsSDM/results'", sep = ""))
+system(paste("rclone copy ", "'/home/aallyn/data'", " 'TargetsSDM:Work/TargetsSDM/data'", sep = ""))
+
 
 # Check on warnings
 warning_ind<- which(!is.na(tar_meta(fields = warnings)$warnings))

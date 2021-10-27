@@ -266,24 +266,24 @@ list(
   tar_target(
     name = tidy_mod_data,
     command = make_tidy_mod_data(all_tidy_occu = all_tidy_occu, all_tows = all_tows_with_all_covs_rescale, out_dir = here::here("data/combined"))
-  )
+  ),
 
   # Things get a bit weird here. Before we go into making the VAST specific data, we are going to want to gather up information for the locations and times we want to predict. These observations will be dummy observations and they won't be used in estimating the likelihood of the model, but the model will predict to them. There has got to be a better way of doing this -- but for now, just to make sure we have what we need and try to make things as flexible as possible for future use.
 
-  # # First step, need to gather up our prediction covariates
-  # # Prediction dataset directory
-  # tar_target(
-  #   name = predict_covariates_raw_dir,
-  #   command = predict_covariates_raw_mk_dir(),
-  #   format = "file",
-  # ),
-  # 
-  # # Read in raw covariates and summarize them
-  # tar_target(
-  #   name = predict_covariates_stack_agg_out,
-  #   command =  predict_covariates_stack_agg(predict_covariates_raw_dir, ensemble_stat = "mean", summarize = "seasonal", resample_template = here::here("data/supporting", "Rast0.25grid.grd"), out_dir = here::here("data/predict")),
-  #   format = "file",
-  # ),
+  # First step, need to gather up our prediction covariates
+  # Prediction dataset directory
+  tar_target(
+    name = predict_covariates_raw_dir,
+    command = predict_covariates_raw_mk_dir(),
+    format = "file",
+  ),
+
+  # Read in raw covariates and summarize them
+  tar_target(
+    name = predict_covariates_stack_agg_out,
+    command =  predict_covariates_stack_agg(predict_covariates_raw_dir, ensemble_stat = "mean", summarize = "seasonal", resample_template = here::here("data/supporting", "Rast0.25grid.grd"), out_dir = here::here("data/predict")),
+    format = "file",
+  ),
 
   # # Processed covariate directory
   # tar_target(
@@ -292,101 +292,101 @@ list(
   #   format = "file",
   # ),
 
-  # # Process prediction covariates into a dataframe that can be eventually joined up to vast_seasonal_data, masked to focal region of interest
-  # tar_target(
-  #   name = region_shapefile_dir,
-  #   command = region_shapefile_mk_dir(),
-  #   format = "file"
-  # ),
-  # 
-  # # Read in region shapefile
-  # tar_target(
-  #   name = region_shapefile,
-  #   command = vast_read_region_shape(region_shapefile_dir)
-  # ),
-  # 
-  # # Read in index shapefiles
-  # tar_target(
-  #   name = index_shapefiles_dir,
-  #   command = index_shapefiles_mk_dir(),
-  #   format = "file"
-  # ),
-  # 
-  # tar_target(
-  #   name = index_shapefiles,
-  #   command = vast_read_index_shapes(index_shapefiles_dir)
-  # ),
-  # 
-  # tar_target(
-  #   name = vast_predict_df,
-  #   command =  make_vast_predict_df(predict_covariates_stack_agg = predict_covariates_stack_agg_out, extra_covariates_stack = static_covariates_stack, covs_rescale = c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal"), rescale_params = rescale_params, depth_cut = depth_cut, mask = region_shapefile, summarize = "seasonal", ensemble_stat = "mean", fit_year_min = fit_year_min, fit_year_max = fit_year_max, fit_seasons = fit_seasons, pred_years = pred_years, out_dir = here::here("data/predict")),
-  # ),
-  # 
-  # # Make extrapolation grid
-  # tar_target(
-  #   name = vast_extrap_grid,
-  #   command = vast_make_extrap_grid(region_shapefile = region_shapefile, index_shapes = index_shapefiles, strata.limits = strata_use, cell_size = 25000)
-  # ),
-  # 
-  # # Make settings 
-  # tar_target(
-  #   name = vast_settings,
-  #   command = vast_make_settings(extrap_grid = vast_extrap_grid, n_knots = 400, FieldConfig = field_config, RhoConfig = rho_config, OverdispersionConfig = c(0, 0), bias.correct = TRUE, knot_method = "samples", inla_method = "Barrier", Options = c("Calculate_Range"=TRUE), strata.limits = strata_use)
-  # ),
-  # 
-  # # Make spatial lists 
-  # tar_target(
-  #   name = vast_spatial_lists,
-  #   command = vast_make_spatial_lists(extrap_grid = vast_extrap_grid, vast_settings = vast_settings, tidy_mod_data = tidy_mod_data, out_dir = paste0(here::here(""), "/"))
-  # ),
-  # 
-  # # Reduce the prediction dataframe from regular grid to have size based on number of knots
-  # tar_target(
-  #   name = vast_predict_df_reduced,
-  #   command = reduce_vast_predict_df(vast_predict_df = vast_predict_df, vast_spatial_lists = vast_spatial_lists, out_dir = here::here("data/predict"))
-  # ), 
-  # 
-  # # Make VAST seasonal data
-  # tar_target(
-  #   name = vast_seasonal_data,
-  #   command = make_vast_seasonal_data(tidy_mod_data = tidy_mod_data, fit_seasons = fit_seasons, nmfs_species_code = nmfs_species_code, fit_year_min = fit_year_min, fit_year_max = fit_year_max, pred_years = pred_years, pred_df = vast_predict_df_reduced, out_dir = here::here("data/combined"))
-  # ),
-  # 
-  # # Make VAST sample data object
-  # tar_target(
-  #   name = vast_sample_data,
-  #   command = make_vast_sample_data(vast_seasonal_data = vast_seasonal_data, out_dir = here::here("data/combined"))
-  # ),
-  # 
-  # # Make VAST covariate data object
-  # tar_target(
-  #   name = vast_covariate_data,
-  #   command = make_vast_covariate_data(vast_seasonal_data = vast_seasonal_data, out_dir = here::here("data/combined"))
-  # ),
-  # 
-  # # Make VAST catachability data object
-  # tar_target(
-  #   name = vast_catchability_data,
-  #   command = make_vast_catchability_data(vast_seasonal_data = vast_seasonal_data, out_dir = here::here("data/combined"))
-  # ),
+  # Process prediction covariates into a dataframe that can be eventually joined up to vast_seasonal_data, masked to focal region of interest
+  tar_target(
+    name = region_shapefile_dir,
+    command = region_shapefile_mk_dir(),
+    format = "file"
+  ),
 
-  # # Make covariate effect vectors -- just habitat covariates
-  # tar_target(
-  #   name = vast_coveff,
-  #   command = vast_make_coveff(X1_coveff_vec = rep(rep(1, gam_degree), hab_env_coeffs_n), X2_coveff_vec = rep(rep(1, gam_degree), hab_env_coeffs_n), Q1_coveff_vec = NULL, Q2_coveff_vec = NULL)
-  # ),
-  
+  # Read in region shapefile
+  tar_target(
+    name = region_shapefile,
+    command = vast_read_region_shape(region_shapefile_dir)
+  ),
+
+  # Read in index shapefiles
+  tar_target(
+    name = index_shapefiles_dir,
+    command = index_shapefiles_mk_dir(),
+    format = "file"
+  ),
+
+  tar_target(
+    name = index_shapefiles,
+    command = vast_read_index_shapes(index_shapefiles_dir)
+  ),
+
+  tar_target(
+    name = vast_predict_df,
+    command =  make_vast_predict_df(predict_covariates_stack_agg = predict_covariates_stack_agg_out, extra_covariates_stack = static_covariates_stack, covs_rescale = c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal"), rescale_params = rescale_params, depth_cut = depth_cut, mask = region_shapefile, summarize = "seasonal", ensemble_stat = "mean", fit_year_min = fit_year_min, fit_year_max = fit_year_max, fit_seasons = fit_seasons, pred_years = pred_years, out_dir = here::here("data/predict")),
+  ),
+
+  # Make extrapolation grid
+  tar_target(
+    name = vast_extrap_grid,
+    command = vast_make_extrap_grid(region_shapefile = region_shapefile, index_shapes = index_shapefiles, strata.limits = strata_use, cell_size = 25000)
+  ),
+
+  # Make settings
+  tar_target(
+    name = vast_settings,
+    command = vast_make_settings(extrap_grid = vast_extrap_grid, n_knots = 400, FieldConfig = field_config, RhoConfig = rho_config, OverdispersionConfig = c(0, 0), bias.correct = TRUE, knot_method = "samples", inla_method = "Barrier", Options = c("Calculate_Range"=TRUE), strata.limits = strata_use)
+  ),
+
+  # Make spatial lists
+  tar_target(
+    name = vast_spatial_lists,
+    command = vast_make_spatial_lists(extrap_grid = vast_extrap_grid, vast_settings = vast_settings, tidy_mod_data = tidy_mod_data, out_dir = paste0(here::here(""), "/"))
+  ),
+
+  # Reduce the prediction dataframe from regular grid to have size based on number of knots
+  tar_target(
+    name = vast_predict_df_reduced,
+    command = reduce_vast_predict_df(vast_predict_df = vast_predict_df, vast_spatial_lists = vast_spatial_lists, out_dir = here::here("data/predict"))
+  ),
+
+  # Make VAST seasonal data
+  tar_target(
+    name = vast_seasonal_data,
+    command = make_vast_seasonal_data(tidy_mod_data = tidy_mod_data, fit_seasons = fit_seasons, nmfs_species_code = nmfs_species_code, fit_year_min = fit_year_min, fit_year_max = fit_year_max, pred_years = pred_years, pred_df = vast_predict_df_reduced, out_dir = here::here("data/combined"))
+  ),
+
+  # Make VAST sample data object
+  tar_target(
+    name = vast_sample_data,
+    command = make_vast_sample_data(vast_seasonal_data = vast_seasonal_data, out_dir = here::here("data/combined"))
+  ),
+
+  # Make VAST covariate data object
+  tar_target(
+    name = vast_covariate_data,
+    command = make_vast_covariate_data(vast_seasonal_data = vast_seasonal_data, out_dir = here::here("data/combined"))
+  ),
+
+  # Make VAST catachability data object
+  tar_target(
+    name = vast_catchability_data,
+    command = make_vast_catchability_data(vast_seasonal_data = vast_seasonal_data, out_dir = here::here("data/combined"))
+  ),
+  # 
+  # # # Make covariate effect vectors -- just habitat covariates
+  # # tar_target(
+  # #   name = vast_coveff,
+  # #   command = vast_make_coveff(X1_coveff_vec = rep(rep(1, gam_degree), hab_env_coeffs_n), X2_coveff_vec = rep(rep(1, gam_degree), hab_env_coeffs_n), Q1_coveff_vec = NULL, Q2_coveff_vec = NULL)
+  # # ),
+  # 
   # # Make covariate effect vectors -- annual intercept
   # tar_target(
   #   name = vast_coveff,
   #   command = vast_make_coveff(X1_coveff_vec = c(2, rep(3, nlevels(vast_covariate_data$Year_Cov)-1), rep(rep(1, gam_degree), hab_env_coeffs_n)), X2_coveff_vec = c(2, rep(3, nlevels(vast_covariate_data$Year_Cov)-1), rep(rep(1, gam_degree), hab_env_coeffs_n)), Q1_coveff_vec = NULL, Q2_coveff_vec = NULL)
   # ),
 
-  # # # Make covariate effect vectors -- multiple seasons
-  # tar_target(
-  #   name = vast_coveff,
-  #   command = vast_make_coveff(X1_coveff_vec = c(2, rep(3, length(unique(fit_seasons))-1), 2, rep(3, nlevels(vast_covariate_data$Year_Cov)-1), rep(rep(1, gam_degree), hab_env_coeffs_n)), X2_coveff_vec = c(2, rep(3, length(unique(fit_seasons))-1), 2, rep(3, nlevels(vast_covariate_data$Year_Cov)-1), rep(rep(1, gam_degree), hab_env_coeffs_n)), Q1_coveff_vec = NULL, Q2_coveff_vec = NULL)
-  # ),
+  # Make covariate effect vectors -- multiple seasons
+  tar_target(
+    name = vast_coveff,
+    command = vast_make_coveff(X1_coveff_vec = c(2, rep(3, length(unique(fit_seasons))-1), 2, rep(3, nlevels(vast_covariate_data$Year_Cov)-1), rep(rep(1, gam_degree), hab_env_coeffs_n)), X2_coveff_vec = c(2, rep(3, length(unique(fit_seasons))-1), 2, rep(3, nlevels(vast_covariate_data$Year_Cov)-1), rep(rep(1, gam_degree), hab_env_coeffs_n)), Q1_coveff_vec = NULL, Q2_coveff_vec = NULL)
+  ),
   # # 
   # # # # Build base model -- annual
   # tar_target(
@@ -394,11 +394,11 @@ list(
   #   command = vast_build_sdm(settings = vast_settings, extrap_grid = vast_extrap_grid, Method = "Barrier", sample_data = vast_sample_data, covariate_data = vast_covariate_data, X1_formula = hab_formula, X2_formula = hab_formula, X_contrasts = list(Year_Cov = contrasts(vast_covariate_data$Year_Cov, contrasts = FALSE)), Xconfig_list = vast_coveff, catchability_data = vast_catchability_data, Q1_formula = catch_formula, Q2_formula = catch_formula, index_shapes = index_shapefiles)
   # ),
   #
-  # # # Build base model -- seasonal
-  # tar_target(
-  #   name = vast_build0,
-  #   command = vast_build_sdm(settings = vast_settings, extrap_grid = vast_extrap_grid, sample_data = vast_sample_data, covariate_data = vast_covariate_data, X1_formula = hab_formula, X2_formula = hab_formula, X_contrasts = list(Season = contrasts(vast_covariate_data$Season, contrasts = FALSE), Year_Cov = contrasts(vast_covariate_data$Year_Cov, contrasts = FALSE)), Xconfig_list = vast_coveff, catchability_data = vast_catchability_data, Q1_formula = catch_formula, Q2_formula = catch_formula, index_shapes = index_shapefiles)
-  # ),
+  # Build base model -- seasonal
+  tar_target(
+    name = vast_build0,
+    command = vast_build_sdm(settings = vast_settings, spatial_info_dir = here::here(""), extrap_grid = vast_extrap_grid, sample_data = vast_sample_data, covariate_data = vast_covariate_data, X1_formula = hab_formula, X2_formula = hab_formula, X_contrasts = list(Season = contrasts(vast_covariate_data$Season, contrasts = FALSE), Year_Cov = contrasts(vast_covariate_data$Year_Cov, contrasts = FALSE)), Xconfig_list = vast_coveff, catchability_data = vast_catchability_data, Q1_formula = catch_formula, Q2_formula = catch_formula, index_shapes = index_shapefiles)
+  ),
 
   # # # Make adjustments -- annual just habitat covariates, no adjustments needed
   # tar_target(
@@ -412,29 +412,29 @@ list(
   #   command = vast_make_adjustments(vast_build = vast_build0, adjustments = list("log_sigmaXi1_cp" = factor(c(rep(4, nlevels(vast_covariate_data$Year_Cov)), rep(NA, gam_degree*hab_env_coeffs_n))), "log_sigmaXi2_cp" = factor(c(rep(4, nlevels(vast_covariate_data$Year_Cov)), rep(NA, gam_degree*hab_env_coeffs_n)))), index_shapes = index_shapefiles)
   # ),
 
-  # # Make adjustments -- seasonal
-  # tar_target(
-  #   name = vast_adjust,
-  #   command = vast_make_adjustments(vast_build = vast_build0, adjustments = list("log_sigmaXi1_cp" = factor(c(rep(1, length(unique(fit_seasons))), rep(4, nlevels(vast_covariate_data$Year_Cov)), rep(NA, gam_degree*hab_env_coeffs_n))), "log_sigmaXi2_cp" = factor(c(rep(1, length(unique(fit_seasons))), rep(4, nlevels(vast_covariate_data$Year_Cov)), rep(NA, gam_degree*hab_env_coeffs_n))), "lambda1_k" = factor(c(1, NA)), "lambda2_k" = factor(c(1, NA))), index_shapes = index_shapefiles)
-  # ),
-  # 
-  # # Fit model, either the base model OR by making some adjustments
-  # tar_target(
-  #   name = vast_fit,
-  #   command = vast_fit_sdm(vast_build_adjust = vast_adjust, nmfs_species_code = nmfs_species_code, out_dir = here::here("results/mod_fits"), index_shapes = index_shapefiles)
-  # ),
-  # 
-  # # Plot samples and knot locations
-  # tar_target(
-  #   name = vast_sample_knot_plot,
-  #   command = vast_plot_design(vast_fit = vast_fit, land = land_sf, spat_grid = here::here("data/predict/predict_stack_SST_seasonal_mean.grd"), xlim = c(-80, -55), ylim = c(35, 50), land_color = "#d9d9d9", out_dir = here::here("results/plots_maps/"))
-  # ),
-  # # 
-  # # # Get covariate effects --
-  # tar_target(
-  #   name = vast_covariate_effects,
-  #   command = get_vast_covariate_effects(vast_fit = vast_fit, params_plot = c("Depth", "SST_seasonal", "BT_seasonal"), params_plot_levels = 100, effects_pad_values = c(1), nice_category_names = nice_category_names, out_dir = here::here("results/tables/"))
-  # ),
+  # Make adjustments -- seasonal
+  tar_target(
+    name = vast_adjust,
+    command = vast_make_adjustments(vast_build = vast_build0, adjustments = list("log_sigmaXi1_cp" = factor(c(rep(1, length(unique(fit_seasons))), rep(4, nlevels(vast_covariate_data$Year_Cov)), rep(NA, gam_degree*hab_env_coeffs_n))), "log_sigmaXi2_cp" = factor(c(rep(1, length(unique(fit_seasons))), rep(4, nlevels(vast_covariate_data$Year_Cov)), rep(NA, gam_degree*hab_env_coeffs_n))), "lambda1_k" = factor(c(1, NA)), "lambda2_k" = factor(c(1, NA))), index_shapes = index_shapefiles, spatial_info_dir = here::here(""))
+  ),
+
+  # Fit model, either the base model OR by making some adjustments
+  tar_target(
+    name = vast_fit,
+    command = vast_fit_sdm(vast_build_adjust = vast_adjust, nmfs_species_code = nmfs_species_code, out_dir = here::here("results/mod_fits"), index_shapes = index_shapefiles, spatial_info_dir = here::here(""))
+  ),
+
+  # Plot samples and knot locations
+  tar_target(
+    name = vast_sample_knot_plot,
+    command = vast_plot_design(vast_fit = vast_fit, land = land_sf, spat_grid = here::here("data/predict/predict_stack_SST_seasonal_mean.grd"), xlim = c(-80, -55), ylim = c(35, 50), land_color = "#d9d9d9", out_dir = here::here("results/plots_maps/"))
+  ),
+  
+  # Get covariate effects --
+  tar_target(
+    name = vast_covariate_effects,
+    command = get_vast_covariate_effects(vast_fit = vast_fit, params_plot = c("Depth", "SST_seasonal", "BT_seasonal"), params_plot_levels = 100, effects_pad_values = c(1), nice_category_names = nice_category_names, out_dir = here::here("results/tables/"))
+  ),
   # 
   # tar_target(
   #   name = vast_covariate_effects,
@@ -446,40 +446,35 @@ list(
   #   command = get_vast_covariate_effects(vast_fit = vast_fit, params_plot = c("Depth", "SST_seasonal"), params_plot_levels = 100, effects_pad_values = c(1), nice_category_names = nice_category_names, out_dir = here::here("results/tables/"))
   # ),
   
-  # # Plot covariate effects
-  # tar_target(
-  #   name = vast_covariate_effects_plot,
-  #   command = plot_vast_covariate_effects(vast_covariate_effects = vast_covariate_effects, vast_fit = vast_fit, nice_category_names = nice_category_names, out_dir = here::here("results/plots_maps/"))
-  # ),
-  # 
-  # # Predict with fitted model
-  # tar_target(
-  #   name = vast_predictions,
-  #   command = predict_vast(vast_fitted_sdm = vast_fit, nmfs_species_code = nmfs_species_code, predict_variable = "D_i", predict_category = 0, predict_vessel = 0, predict_covariates_df_all = vast_predict_df, out_dir = here::here("results/prediction_df"))
-  # ),
-  # 
-  # # Create gif from predictions
-  # tar_target(
-  #   name = plot_preds,
-  #   command = vast_fit_plot_density(vast_fit = vast_fit, nice_category_names = nice_category_names, mask = region_shapefile, all_times = as.character(levels(vast_seasonal_data$VAST_YEAR_SEASON)), plot_times = NULL, land_sf = land_sf, xlim = c(-80, -55), ylim = c(35, 50), panel_or_gif = "gif", out_dir = here::here("results/plots_maps"))
-  # ),
+  # Plot covariate effects
+  tar_target(
+    name = vast_covariate_effects_plot,
+    command = plot_vast_covariate_effects(vast_covariate_effects = vast_covariate_effects, vast_fit = vast_fit, nice_category_names = nice_category_names, out_dir = here::here("results/plots_maps/"))
+  ),
+  
+  # Predict with fitted model
+  tar_target(
+    name = vast_predictions,
+    command = predict_vast(vast_fitted_sdm = vast_fit, nmfs_species_code = nmfs_species_code, predict_variable = "D_i", predict_category = 0, predict_vessel = 0, predict_covariates_df_all = vast_predict_df, out_dir = here::here("results/prediction_df"))
+  ),
 
-  # tar_target(
-  #   name = plot_preds,
-  #   comman = vast_df_plot_density(pred_df = vast_predictions, nice_category_names = nice_category_names, mask = region_shapefile, all_times = as.character(levels(vast_seasonal_data$VAST_YEAR_SEASON)), plot_times = NULL, land_sf = land_sf, xlim = c(-80, -55), ylim = c(35, 50), panel_or_gif = "gif", out_dir = here::here("results/plots_maps"))
-  # ),
-  # 
-  # # # Calculate biomass index values
-  # tar_target(
-  #   name = biomass_indices,
-  #   command = get_vast_index_timeseries(vast_fit = vast_fit, nice_category_names = nice_category_names, index_scale = c("raw"), out_dir = here::here("results/tables"))
-  # ),
-  # # 
-  # # # Plot biomass index time series
-  # tar_target(
-  #   name = plot_biomass_timeseries,
-  #   command = plot_vast_index_timeseries(index_res_df = biomass_indices, index_scale = "raw", nice_category_names = nice_category_names, nice_xlab = "Year-Season", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = here::here("results/plots_maps"))
-  # )
+  # Create gif from predictions
+  tar_target(
+    name = plot_preds,
+    command = vast_fit_plot_density(vast_fit = vast_fit, nice_category_names = nice_category_names, mask = region_shapefile, all_times = as.character(levels(vast_seasonal_data$VAST_YEAR_SEASON)), plot_times = NULL, land_sf = land_sf, xlim = c(-80, -55), ylim = c(35, 50), panel_or_gif = "gif", out_dir = here::here("results/plots_maps"))
+  ),
+
+  # Calculate biomass index values
+  tar_target(
+    name = biomass_indices,
+    command = get_vast_index_timeseries(vast_fit = vast_fit, nice_category_names = nice_category_names, index_scale = c("raw"), out_dir = here::here("results/tables"))
+  ),
+  
+  # Plot biomass index time series
+  tar_target(
+    name = plot_biomass_timeseries,
+    command = plot_vast_index_timeseries(index_res_df = biomass_indices, index_scale = "raw", nice_category_names = nice_category_names, nice_xlab = "Year-Season", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = here::here("results/plots_maps"))
+  )
 )
 
 # End of _targets.R
