@@ -747,6 +747,8 @@ vast_build_sdm <- function(settings, extrap_grid, sample_data, covariate_data, X
     tar_load(vast_coveff)
     Xconfig_list = vast_coveff
     tar_load(index_shapefiles)
+    index_shapes = index_shapefiles
+    spatial_info_dir = here::here("")
     
     # Annual
     tar_load(vast_settings)
