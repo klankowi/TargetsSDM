@@ -1846,7 +1846,8 @@ get_vast_index_timeseries<- function(vast_fit, nice_category_names, index_scale 
     predict_covariates_df_all = vast_predict_df
     
     tar_load(vast_fit)
-    nice_category_names = "American lobster"
+    vast_fit = vast_fitted
+    nice_category_names = "Atlantic halibut"
     index_scale = "raw"
     out_dir = here::here("scratch/aja/TargetsSDM/results/tables")
   }
@@ -1910,12 +1911,10 @@ get_vast_index_timeseries<- function(vast_fit, nice_category_names, index_scale 
         index_res_out<- bind_rows(index_res_out, index_res_temp_out)
       }
     } else if(dim(index_array_temp)[2] == 2){
-      index_res_temp_est<- data.frame("Time" = as.numeric(names(index_array_temp[,1])), "Category" = categories_ind[i], index_array_temp[,1]) %>%
+      index_res_temp_est<- data.frame("Time" = as.numeric(rownames(index_array_temp[,,1])), "Category" = categories_ind[i], index_array_temp[,,1]) %>%
         pivot_longer(cols = -c(Time, Category), names_to = "Index_Region", values_to = "Index_Estimate")
-      index_res_temp_est$Index_Region<- attributes(index_res_array)$dimnames[[3]]
-      index_res_temp_sd<- data.frame("Time" = as.numeric(names(index_array_temp[,1])), "Category" = categories_ind[i], index_array_temp[,2]) %>%
+      index_res_temp_sd<- data.frame("Time" = as.numeric(rownames(index_array_temp[,,1])), "Category" = categories_ind[i], index_array_temp[,,2]) %>%
         pivot_longer(cols = -c(Time, Category), names_to = "Index_Region", values_to = "Index_SD")
-      index_res_temp_sd$Index_Region<- attributes(index_res_array)$dimnames[[3]]
       index_res_temp_out<- index_res_temp_est %>%
         left_join(., index_res_temp_sd)
       
@@ -2230,6 +2229,14 @@ vast_plot_design<- function(vast_fit, land, spat_grid, xlim = c(-80, -55), ylim 
     xlim = c(-80, -55)
     ylim = c(35, 50)
     land_color = "#f0f0f0"
+    
+    vast_fit = vast_fitted
+    land = land_use
+    spat_grid = spat_grid
+    xlim = xlim_use
+    ylim = ylim_use
+    land_color = "#f0f0f0"
+    out_dir = main_dir
   }
   
   # Read in raster
@@ -2260,16 +2267,16 @@ vast_plot_design<- function(vast_fit, land, spat_grid, xlim = c(-80, -55), ylim 
   # Knots and mesh...
   # Getting spatial information
   spat_data<- vast_fit$extrapolation_list
-  knots<- data.frame("Lon" = as.numeric(spat_data$Data_Extrap$Lon), "Lat" = as.numeric(spat_data$Data_Extrap$Lat)) %>%
+  extrap_grid<- data.frame("Lon" = as.numeric(spat_data$Data_Extrap$Lon), "Lat" = as.numeric(spat_data$Data_Extrap$Lat)) %>%
     distinct(., Lon, Lat)
  
-  tow_samps_knots<- tow_samps +
-    geom_point(data = knots, aes(x = Lon, y = Lat), fill = "#41ab5d", pch = 21, size = 0.75) +
-    ggtitle("VAST spatial grid knots")
+  tow_samps_grid<- tow_samps +
+    geom_point(data = extrap_grid, aes(x = Lon, y = Lat), fill = "#41ab5d", pch = 21, size = 0.75) +
+    ggtitle("VAST spatial extrapolation grid")
   
   # Get mesh as sf
   mesh_sf<- vast_mesh_to_sf(vast_fit, crs_transform = "+proj=longlat +datum=WGS84 +no_defs")$triangles
-  tow_samps_mesh<- ggplot() +
+  tow_samps_mesh<- tow_samps +
     geom_sf(data = land, fill = land_color, lwd = 0.2, na.rm = TRUE) +
     geom_sf(data = mesh_sf, fill = NA, color = "#41ab5d") +
     coord_sf(xlim = xlim, ylim = ylim, expand = 0) +
@@ -2277,11 +2284,11 @@ vast_plot_design<- function(vast_fit, land, spat_grid, xlim = c(-80, -55), ylim 
     ggtitle("INLA Mesh")
   
   # Plot em together
-  plot_out<- tow_samps + tow_samps_knots + tow_samps_mesh + plot_layout(guides = 'collect')
-    
+  plot_out<- tow_samps + tow_samps_grid + tow_samps_mesh
   
   # Save it
-  ggsave(tow_samps_knots, file = paste(out_dir, "/", "samples_and_knots_plot.jpg", sep = ""))
+  ggsave(plot_out, file = paste(out_dir, "/", "samples_grid_knots_plot.jpg", sep = ""))
+  return(plot_out)
 }
 
 
