@@ -1,0 +1,4 @@
+outs:
+- md5: a270d496e4f735fbdb763de6072554c3
+  size: 943097
+  path: all_tows_with_static_covs_sf.rds
