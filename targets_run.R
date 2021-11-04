@@ -11,7 +11,7 @@ registerDoFuture()
 plan(multisession, workers = cores_avail-2)
 
 # Clean everything?
-clean_start<- TRUE
+clean_start<- FALSE
 if(clean_start){
   tar_destroy()
 }

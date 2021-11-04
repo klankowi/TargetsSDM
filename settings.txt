@@ -8,15 +8,9 @@ $Region
 [1] "User"
 
 $strata.limits
-                STRATA
-1         NMFS_and_DFO
-2                  DFO
-3                 NMFS
-4        Scotian_Shelf
-5         Georges_Bank
-6        Gulf_of_Maine
-7 Southern_New_England
-8   Mid_Atlantic_Bight
+  STRATA
+1    DFO
+2   NMFS
 
 $zone
 [1] NA
@@ -27,7 +21,7 @@ $FieldConfig
 
 $RhoConfig
    Beta1    Beta2 Epsilon1 Epsilon2 
-       2        2        2        2 
+       0        0        0        0 
 
 $VamConfig
 Method   Rank Timing 
@@ -53,7 +47,7 @@ $max_cells
 [1] 4000
 
 $knot_method
-[1] "samples"
+[1] "grid"
 
 $Method
 [1] "Barrier"
