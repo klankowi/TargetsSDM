@@ -19,7 +19,7 @@ library(lubridate)
 library(profvis)
 library(googledrive)
 
-# Source a bunch of "vast" helper function. These are all located here: https://github.com/aallyn/TargetsSDM. Working on getting this into a nicer package style.
+# Source a bunch of "vast" helper function. These are all located here: https://github.com/aallyn/TargetsSDM. Working on getting this into a nicer package style. I think this could also change if you fork/clone the repo, then you can source from the local copies...
 source_url("https://raw.githubusercontent.com/aallyn/TargetsSDM/main/R/nmfs_functions.R")
 source_url("https://raw.githubusercontent.com/aallyn/TargetsSDM/main/R/dfo_functions.R")
 source_url("https://raw.githubusercontent.com/aallyn/TargetsSDM/main/R/combo_functions.R")
@@ -43,18 +43,17 @@ Finally, for folks who are new to the VAST modeling framework, we suggest starti
 ## Stage 1: Preparing tow and biological data
 The first stage of the species distribution modeling process is preparing the data. Here, we think about two different datasets. The first, `tow_data` are the data corresponding to each of the unique tows/net sets/samples/etc. The second, `occu_data`, are the occurrence catch data for each species (or size/age/stage class). These data could be presence/absence, abundance or biomass. Given our regular work that uses government fisheries independent survey data, we focus on `occu_data` which are the biomass of a species at each tow location. With this structure, we expect that the `tow_data` dataset is not going to be as long as the `occu_data` dataset because unique tow information is going to be repeated for each species (or size/age/stage class) caught at a given town in the `occu_data` dataset. 
 
-For this step, we have a suite of functions that we use to work specifically with the NOAA NMFS Northeast Fisheries Science Center spring and fall bottom trawl survey and Department of Fisheries and Oceans Canada summer bottom trawl survey. We walk through these steps and show the functions. However, we expect that  other users will likely have their own "raw" data files and will do their own preparation process. 
+For this step, we have a suite of functions that we use to work specifically with the NOAA NMFS Northeast Fisheries Science Center spring and fall bottom trawl survey and Department of Fisheries and Oceans Canada summer bottom trawl survey. We walk through these steps and show the functions. However, we expect thatother users will likely have their own "raw" data files and will do their own preparation process. 
+
+**To get these data, open up a terminal and change the directory to your forked/cloned copy of `TargetSDM` and then type `dvc pull`. If this works, you should pull down all the data stored on a remote google drive that is needed to run the vignette.**
 
 ```{r}
-# Setting directory to run the vignette -- update this or get rid of it if possible!
-main_dir<- "~/Desktop/SDM_Workflow_Vignette/"
-
-# Setting directories for the raw data files -- download and extract the zipped google drive folder to main_dir/data
-nmfs_dat_dir<- paste0(main_dir, "/data/nmfs/raw")
-dfo_dat_dir<- paste0(main_dir, "data/dfo/raw")
+# Setting directories for the raw data files 
+nmfs_dat_dir<- here::here("", "data/nmfs/raw")
+dfo_dat_dir<- here::here("", "data/dfo/raw")
 
 # Read in a species table -- this makes the data a bit more manageable as we won't be inputting assumed absences for every single species ever recorded on the survey.
-species<- read_csv(paste0(main_dir, "data/supporting/species_table.csv"))
+species<- read_csv(here::here("", "data/supporting/species_table.csv"))
 
 # Loading data -- nmfs is all in one file, dfo has multiple different raw files we need
 nmfs_raw_dat<- nmfs_load(nmfs_dat_dir)
@@ -63,16 +62,16 @@ dfo_GSMISSIONS<- dfo_GSMISSIONS_load(dfo_dat_dir)
 dfo_GSCAT<- dfo_GSCAT_load(dfo_dat_dir)
 
 # Running nmfs data prep functions
-nmfs_tows<- nmfs_get_tows(nmfs_raw = nmfs_raw_dat, out_dir = main_dir)
-nmfs_occu<- nmfs_make_tidy_occu(nmfs_raw = nmfs_raw_dat, nmfs_tows = nmfs_tows, species_table = species, out_dir = main_dir)
+nmfs_tows<- nmfs_get_tows(nmfs_raw = nmfs_raw_dat, out_dir = here::here("", "data/nmfs/clean"))
+nmfs_occu<- nmfs_make_tidy_occu(nmfs_raw = nmfs_raw_dat, nmfs_tows = nmfs_tows, species_table = species, out_dir = here::here("", "data/nmfs/clean"))
 
 # Running DFO data prep functions
-dfo_tows<- dfo_get_tows(dfo_GSINF = dfo_GSINF, dfo_GSMISSIONS = dfo_GSMISSIONS, out_dir = main_dir)
-dfo_occu<- dfo_make_tidy_occu(dfo_GSCAT = dfo_GSCAT, dfo_tows = dfo_tows, species_table = species, out_dir = main_dir)
+dfo_tows<- dfo_get_tows(dfo_GSINF = dfo_GSINF, dfo_GSMISSIONS = dfo_GSMISSIONS, out_dir = here::here("", "data/dfo/clean"))
+dfo_occu<- dfo_make_tidy_occu(dfo_GSCAT = dfo_GSCAT, dfo_tows = dfo_tows, species_table = species, out_dir = here::here("", "data/dfo/clean"))
 
 # Combining to get a single `tow_data` dataset and a single `occu_data` dataset
-all_tows<- bind_nmfs_dfo_tows(nmfs_tows = nmfs_tows, dfo_tows = dfo_tows, out_dir = main_dir)
-all_occu<- bind_nmfs_dfo_tidy_occu(nmfs_tidy_occu = nmfs_occu, dfo_tidy_occu = dfo_occu, out_dir = main_dir)
+all_tows<- bind_nmfs_dfo_tows(nmfs_tows = nmfs_tows, dfo_tows = dfo_tows, out_dir = here::here("", "data/combined"))
+all_occu<- bind_nmfs_dfo_tidy_occu(nmfs_tidy_occu = nmfs_occu, dfo_tidy_occu = dfo_occu, out_dir = here::here("", "data/combined"))
 ```
 
 As we mentioned above, we don't expect that all users are going to use these same prep functions. That said, it is important that the structure of the `all_tows` dataframe and the `all_occu` dataframe have a similar structure to use the other functions. **Improvements could certainly made here to make things even more flexible**. At a minimum, `all_tows` should have columns named: `EST_YEAR`,  `DECDEG_BEGLAT`, `DECDEG_BEGLON`, `ID`, `DATE` (in YYY-MM-DD format) and `SEASON` and `SURVEY` (if applicable and fitting seasonal model or a model using survey as a catchability factor). `all_occu` should have columns named `ID`, `PRESENCE`, `BIOMASS`, `ABUNDANCE`, `SURVEY` and then a column with a species ID code. 
@@ -110,7 +109,7 @@ names(static_layers)[i]<- "Depth"
 all_tows_sf<- points_to_sf(all_tows)
 
 # Run static_extract_wrapper
-all_tows_with_static_covs<- static_extract_wrapper(static_covariates_list = static_layers, sf_points = all_tows_sf, date_col_name = "DATE", df_sf = "sf", out_dir = main_dir)
+all_tows_with_static_covs<- static_extract_wrapper(static_covariates_list = static_layers, sf_points = all_tows_sf, date_col_name = "DATE", df_sf = "sf", out_dir = here::here("", "data/combined"))
 
 # Check it out
 summary(all_tows_with_static_covs)
@@ -131,7 +130,7 @@ for(i in seq_along(dynamic_files)){
 names(dynamic_stacks)<- c("BS", "BT", "SS", "SST")
 
 # Run dynamic_2d_extract_wrapper function
-all_tows_with_all_covs<- dynamic_2d_extract_wrapper(dynamic_covariates_list = dynamic_stacks, t_summ = "seasonal", t_position = NULL, sf_points = all_tows_with_static_covs, date_col_name = "DATE", df_sf = "df", out_dir = main_dir)
+all_tows_with_all_covs<- dynamic_2d_extract_wrapper(dynamic_covariates_list = dynamic_stacks, t_summ = "seasonal", t_position = NULL, sf_points = all_tows_with_static_covs, date_col_name = "DATE", df_sf = "df", out_dir = here::here("", "data/combined"))
 
 # Check it out
 summary(all_tows_with_all_covs)
@@ -141,17 +140,17 @@ At this point, we add an additional processing step that rescales our covariate 
 ```{r}
 # Rescale
 depth_cut<- 500 # Most sampling occurs on the shelf, just a few rogue off shelf observations and don't want those influencing parameter estimates/model fit
-all_tows_with_all_covs_rescale<- rescale_all_covs(all_tows_with_all_covs, depth_cut = depth_cut, type = "AJA", center = TRUE, scale = TRUE, out_dir = main_dir)
+all_tows_with_all_covs_rescale<- rescale_all_covs(all_tows_with_all_covs, depth_cut = depth_cut, type = "AJA", center = TRUE, scale = TRUE, out_dir = here::here("", "data/combined"))
 
 # Get rescaling parameters for later use
-rescale_params<- get_rescale_params(all_tows_with_all_covs, depth_cut = depth_cut, out_dir = main_dir)
+rescale_params<- get_rescale_params(all_tows_with_all_covs, depth_cut = depth_cut, out_dir = here::here("", "data/covariates/"))
 ```
 
 ## Stage 3: Make a tidy model dataframe
 Now that we have covariate values at each of the tow locations, we can wrap up the "prep and enhancement" stages by merging these data back with our occupancy dataframe to create a tidy model dataframe. This dataframe has a row for every unique tow-species-catch observation, as well as additional columns with the values for any of the covariates we might be interested in including as predictor variables in our species distribution model. 
 
 ```{r}
-tidy_mod_data<- make_tidy_mod_data(all_tidy_occu = all_occu, all_tows = all_tows_with_all_covs_rescale, out_dir = main_dir)
+tidy_mod_data<- make_tidy_mod_data(all_tidy_occu = all_occu, all_tows = all_tows_with_all_covs_rescale, out_dir = here::here("", "data/combined"))
 summary(tidy_mod_data)
 head(tidy_mod_data)
 ```
@@ -183,14 +182,14 @@ Along with the key dataframes (i.e., "sample", "covariate" and "catchability" da
 
 ```{r}
 # First, we need our region shapefile
-region_shape<- st_read(paste0(main_dir, "data/supporting/region_shapefile/full_survey_region.shp"))
+region_shape<- st_read(here::here("", "data/supporting/region_shapefile/full_survey_region.shp"))
 
 # Second, get our index area shapefile
 # We could just use this same shapefile in the "index_shapes" argument, but to show off the new functions we wrote, we will also want to have a sf multipolygon shapefiles with areas defined within this general region
 index_areas<- c("DFO", "NMFS")
 
 for(i in seq_along(index_areas)){
-  index_area_temp<- st_read(paste0(main_dir, "data/supporting/index_shapefiles/", index_areas[i], ".shp"))
+  index_area_temp<- st_read(paste0(here::here("", "data/supporting/index_shapefiles/"), index_areas[i], ".shp"))
   
   if(i < length(index_areas)){
     index_area_shapes<- index_area_temp
@@ -241,13 +240,13 @@ We are finally getting to the good stuff! Now that we have our datasets, the ext
 
 ```{r}
 # Running the `vast_build_sdm` function to get everything ready to go while not estimating parameters, yet, as `run_model = FASLE`
-vast0<- vast_build_sdm(settings = vast_settings, extrap_grid = vast_extrap_grid_nona, sample_data = vast_sample_data, covariate_data = NULL, X1_formula = NULL, X2_formula = NULL, Q1_formula = NULL, Q2_formula = NULL, Xconfig_list = vast_coveff, X_contrasts = NULL, index_shapes = index_area_shapes, spatial_info_dir = main_dir)
+vast0<- vast_build_sdm(settings = vast_settings, extrap_grid = vast_extrap_grid_nona, sample_data = vast_sample_data, covariate_data = NULL, X1_formula = NULL, X2_formula = NULL, Q1_formula = NULL, Q2_formula = NULL, Xconfig_list = vast_coveff, X_contrasts = NULL, index_shapes = index_area_shapes, spatial_info_dir = here::here(""))
 ```
 
 We've also written a function that can make some adjustments to the `vast0` base model. This becomes much more important later on, particularly to use the `Map` list in the TMB object to pool different parameters when running a seasonal model. For this basic example, we don't need to make any adjustments and can instead go right to the `vast_fit_sdm` function. Like the `vast_build_sdm` function, this fitting function is mostly just a wrapper around VAST's `fit_model` function.
 
 ```{r}
-vast_fitted<- vast_fit_sdm(vast_build_adjust = vast0, nmfs_species_code = 101, index_shapes = index_area_shapes, spatial_info_dir = main_dir, out_dir = main_dir)
+vast_fitted<- vast_fit_sdm(vast_build_adjust = vast0, nmfs_species_code = 101, index_shapes = index_area_shapes, spatial_info_dir = here::here(""), out_dir = here::here("", "results"))
 ```
 
 ## Stage 7: Make inferences from the fitted model
@@ -255,15 +254,15 @@ Success (hopefully)! Now that we've got our fitted model, what can we do? The fi
 
 ```{r}
 # A land shapefile and setting lon/lat limits
-land_use<- st_read(paste0(main_dir, "data/supporting/land_shapefile/ne_50m_land.shp"))
+land_use<- st_read(here::here("", "data/supporting/land_shapefile/ne_50m_land.shp"))
 xlim_use<- c(-80, -55)
 ylim_use<- c(35, 50)
 ```
 
 ```{r}
 # Making the plots
-spat_grid<- raster(paste0(main_dir, "data/supporting/Rast0.25grid.grd"))
-design_plots<- vast_plot_design(vast_fit = vast_fitted, land = land_use, spat_grid = spat_grid, xlim = xlim_use, ylim = ylim_use, land_color = "#f0f0f0", out_dir = main_dir)
+spat_grid<- raster(here::here("", "data/supporting/Rast0.25grid.grd"))
+design_plots<- vast_plot_design(vast_fit = vast_fitted, land = land_use, spat_grid = spat_grid, xlim = xlim_use, ylim = ylim_use, land_color = "#f0f0f0", out_dir = here::here("", "results"))
 design_plots
 ```
 
@@ -290,14 +289,14 @@ Along with the fixed effect parameters, we might also have some random effects -
 
 ```{r}
 # First, spatial variability (omega) -- one layer for each model stage 
-vast_omega1_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Omega1_gc", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = main_dir, land_color = "#d9d9d9")
-vast_omega2_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Omega2_gc", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = main_dir, land_color = "#d9d9d9")
+vast_omega1_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Omega1_gc", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results"), land_color = "#d9d9d9")
+vast_omega2_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Omega2_gc", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results"), land_color = "#d9d9d9")
 vast_omega1_plot + vast_omega2_plot
 
 # Next, spatio-temporal variability (epsilon) -- one layer for each time step for each model stage
-vast_epsilon1_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Epsilon1_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = main_dir, land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
+vast_epsilon1_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Epsilon1_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
 vast_epsilon1_plot
-vast_epsilon2_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Epsilon2_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = main_dir, land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
+vast_epsilon2_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Epsilon2_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
 vast_epsilon2_plot
 ```
 
@@ -305,15 +304,15 @@ Finally, we can plot some of the derived products from the fitted VAST model. Al
 
 ```{r}
 # Extracting stratified biomass indices and plotting as a time series
-biomass_indices<- get_vast_index_timeseries(vast_fit = vast_fitted, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = main_dir)
+biomass_indices<- get_vast_index_timeseries(vast_fit = vast_fitted, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = here::here("", "results"))
 
-plot_vast_index_timeseries(index_res_df = biomass_indices, index_scale = "raw", nice_category_names = "Atlantic halibut", nice_xlab = "Year", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = main_dir)
+plot_vast_index_timeseries(index_res_df = biomass_indices, index_scale = "raw", nice_category_names = "Atlantic halibut", nice_xlab = "Year", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = here::here("", "results"))
 ```
 
 
 ```{r}
 # Extracting and plotting predicted density at knot locations, smoothed over a regular grid
-vast_density_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "D_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = main_dir, land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
+vast_density_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "D_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
 vast_density_plot
 ```
 
@@ -354,35 +353,35 @@ We've now got everything we need to build our new VAST model. To recap, and doub
 
 ```{r}
 # Build
-vast0_hab_covs<- vast_build_sdm(settings = vast_settings, extrap_grid = vast_extrap_grid_nona, sample_data = vast_sample_data, covariate_data = vast_covariate_data, X1_formula = hab_formula, X2_formula = hab_formula, Q1_formula = NULL, Q2_formula = NULL, Xconfig_list = vast_coveff_habcovs, X_contrasts = NULL, index_shapes = index_area_shapes, spatial_info_dir = main_dir)
+vast0_hab_covs<- vast_build_sdm(settings = vast_settings, extrap_grid = vast_extrap_grid_nona, sample_data = vast_sample_data, covariate_data = vast_covariate_data, X1_formula = hab_formula, X2_formula = hab_formula, Q1_formula = NULL, Q2_formula = NULL, Xconfig_list = vast_coveff_habcovs, X_contrasts = NULL, index_shapes = index_area_shapes, spatial_info_dir = here::here(""))
 ```
 
 After confirming everything looks right, we can fit the new model. 
 ```{r}
 # Fit
-vast_fitted_hab_covs<- vast_fit_sdm(vast_build_adjust = vast0_hab_covs, nmfs_species_code = 101, index_shapes = index_area_shapes, spatial_info_dir = main_dir, out_dir = main_dir)
+vast_fitted_hab_covs<- vast_fit_sdm(vast_build_adjust = vast0_hab_covs, nmfs_species_code = 101, index_shapes = index_area_shapes, spatial_info_dir = here::here(""), out_dir = here::here("", "results"))
 ```
 
 ### Model inference
 As with our basic model, we can do a whole bunch of things after we've fit the model. For example, we could look at the estimated biomass and see how that compares to the basic model.
 ```{r}
-biomass_indices_habcovs<- get_vast_index_timeseries(vast_fit = vast_fitted_hab_covs, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = main_dir)
+biomass_indices_habcovs<- get_vast_index_timeseries(vast_fit = vast_fitted_hab_covs, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = here::here("", "results"))
 
 unique(biomass_indices_habcovs$Index_Region)
 biomass_indices_habcovs$Index_Region<-  recode(biomass_indices_habcovs$Index_Region, "DFO" = "DFO_HabCovs", "NMFS" = "NMFS_HabCovs")
 
 biomass_indices_both<- bind_rows(biomass_indices, biomass_indices_habcovs)
 
-plot_vast_index_timeseries(index_res_df = biomass_indices_both, index_scale = "raw", nice_category_names = "Atlantic halibut", nice_xlab = "Year", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = main_dir)
+plot_vast_index_timeseries(index_res_df = biomass_indices_both, index_scale = "raw", nice_category_names = "Atlantic halibut", nice_xlab = "Year", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = here::here("", "results"))
 
 # Kind of ugly to look at, but could easily enough take and plot a difference or do whatever else you want.
 ```
 
 We could do similar comparisons with other shared parameters and derived products -- for example we could look at differences in predicted density. Beyond that, the other thing that might of interest now is visualizing the fitted smooth functions defining the relationship between species occurrence and the environmental variables. To do that, we can run our `get_vast_covariate_effects` and `plot_vast_covariate_effects` functions. 
 ```{r}
-vast_habcovs_effs<- get_vast_covariate_effects(vast_fit = vast_fitted_hab_covs, params_plot = c("Depth", "SST_seasonal", "BT_seasonal"), params_plot_levels = 100, effects_pad_values = c(), nice_category_names = "Atlantic halibut", out_dir = main_dir)
+vast_habcovs_effs<- get_vast_covariate_effects(vast_fit = vast_fitted_hab_covs, params_plot = c("Depth", "SST_seasonal", "BT_seasonal"), params_plot_levels = 100, effects_pad_values = c(), nice_category_names = "Atlantic halibut", out_dir = here::here("", "results"))
 
 # Warnings are...interesting....
-vast_habcovs_plot<- plot_vast_covariate_effects(vast_covariate_effects = vast_habcovs_effs, vast_fit = vast_fitted_hab_covs, nice_category_names = "Atlantic halibut", out_dir = main_dir)
+vast_habcovs_plot<- plot_vast_covariate_effects(vast_covariate_effects = vast_habcovs_effs, vast_fit = vast_fitted_hab_covs, nice_category_names = "Atlantic halibut", out_dir = here::here("", "results"))
 vast_habcovs_plot
 ```
