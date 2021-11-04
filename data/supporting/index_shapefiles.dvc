@@ -1,0 +1,5 @@
+outs:
+- md5: 480d475a7a415998e15a4ddc4ac1f1cf.dir
+  size: 772612
+  nfiles: 41
+  path: index_shapefiles

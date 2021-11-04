@@ -1,0 +1,4 @@
+outs:
+- md5: 22b624046a896bca1f713d60d2bc3535
+  size: 79982
+  path: bot_temp_SODA_bias_corrected_95thpercentile.grd

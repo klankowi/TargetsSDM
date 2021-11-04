@@ -1,0 +1,4 @@
+outs:
+- md5: 530bacd297616d7122d9207785bea93c
+  size: 3864026
+  path: vast_data.rds

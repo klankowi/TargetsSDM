@@ -1,0 +1,4 @@
+outs:
+- md5: 5b75d72be4e24e7caf6a84068d998623
+  size: 347904000
+  path: surf_temp_OISST_bias_corrected_mean.gri

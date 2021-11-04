@@ -1,0 +1,4 @@
+outs:
+- md5: 048399f58cecc764e6d08ba1be799cf9
+  size: 77866
+  path: surf_sal_SODA_bias_corrected_95thpercentile.grd

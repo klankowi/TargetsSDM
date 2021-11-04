@@ -1,0 +1,4 @@
+outs:
+- md5: ae1b48b4e940436a4fdd6de893a791fe
+  size: 115968000
+  path: predict_stack_BT_seasonal_mean.gri

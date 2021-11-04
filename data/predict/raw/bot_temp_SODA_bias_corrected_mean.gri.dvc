@@ -1,0 +1,4 @@
+outs:
+- md5: 8b8678103740b4c0c81cc7435e1a4180
+  size: 86976000
+  path: bot_temp_SODA_bias_corrected_mean.gri

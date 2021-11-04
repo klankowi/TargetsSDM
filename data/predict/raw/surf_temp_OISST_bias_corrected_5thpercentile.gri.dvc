@@ -1,0 +1,4 @@
+outs:
+- md5: 18fa564b2ec12170eb52d71bd5caa25f
+  size: 347904000
+  path: surf_temp_OISST_bias_corrected_5thpercentile.gri

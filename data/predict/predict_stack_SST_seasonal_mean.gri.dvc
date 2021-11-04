@@ -1,0 +1,4 @@
+outs:
+- md5: 7808a162d555fecc87d9dd815ba9a701
+  size: 115968000
+  path: predict_stack_SST_seasonal_mean.gri

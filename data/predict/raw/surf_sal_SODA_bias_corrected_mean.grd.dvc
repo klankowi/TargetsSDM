@@ -1,0 +1,4 @@
+outs:
+- md5: 6c8ec2d6c348b65ca4787a4706911f0a
+  size: 77880
+  path: surf_sal_SODA_bias_corrected_mean.grd
