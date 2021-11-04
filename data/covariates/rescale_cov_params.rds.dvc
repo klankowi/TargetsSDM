@@ -1,4 +1,0 @@
-outs:
-- md5: 62af2fa804e65bcdd54af65c7a2985b1
-  size: 267
-  path: rescale_cov_params.rds
