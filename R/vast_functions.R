@@ -2215,6 +2215,7 @@ plot_vast_covariate_effects<- function(vast_covariate_effects, vast_fit, nice_ca
   
   # Save and return it
   ggsave(plot_out2, file = paste(out_dir, "/", nice_category_names, "_covariate_effects.jpg", sep = ""))
+  return(plot_out2)
 }
 
 
