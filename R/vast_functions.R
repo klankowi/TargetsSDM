@@ -919,6 +919,7 @@ vast_fit_sdm <- function(vast_build_adjust, nmfs_species_code, index_shapes, spa
     out_dir = here::here("results/mod_fits")
     tar_load(index_shapefiles)
     index_shapes = index_shapefiles
+    spatial_info_dir = here::here("")
   }
   
   # Build and fit model
