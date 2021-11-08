@@ -1,20 +1,23 @@
 # R project and user data files
 .Rproj.user
 .Rhistory
-.RData
+*.RData
 .Ruserdata
-.rds
+*.rds
 
 # R files that tend to be large
-.gri$
-.grd$
-.tiff$
+*.gri
+*.grd
+*.tiff
 
 # For targets
 _targets/
 
-# AJA data and results folders
+# AJA results folders
 /results
+data/nmfs/raw/march_2021_survdat_allcols.csv
+data/supporting/species_table.csv
+data/dfo/raw/DD_20191004.xlsx
 
 # For bookdown
 docs/.nojekyll
