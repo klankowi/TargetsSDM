@@ -20,11 +20,11 @@ library(profvis)
 library(googledrive)
 
 # Source a bunch of "vast" helper function. These are all located here: https://github.com/aallyn/TargetsSDM. Working on getting this into a nicer package style. I think this could also change if you fork/clone the repo, then you can source from the local copies...
-source_url("https://raw.githubusercontent.com/aallyn/TargetsSDM/main/R/nmfs_functions.R")
-source_url("https://raw.githubusercontent.com/aallyn/TargetsSDM/main/R/dfo_functions.R")
-source_url("https://raw.githubusercontent.com/aallyn/TargetsSDM/main/R/combo_functions.R")
-source_url("https://raw.githubusercontent.com/aallyn/TargetsSDM/main/R/covariate_functions.R")
-source_url("https://raw.githubusercontent.com/aallyn/TargetsSDM/main/R/vast_functions.R")
+source(here::here("", "R/nmfs_functions.R"))
+source(here::here("", "R/dfo_functions.R"))
+source(here::here("", "R/combo_functions.R"))
+source(here::here("", "R/covariate_functions.R"))
+source(here::here("", "R/vast_functions.R"))
 ```
 
 ```{r, echo = FALSE}
@@ -97,8 +97,8 @@ For this vingette, we will go ahead and enance the tow data by extracting depth,
 ## Static covariates
 #####
 # Read in static raster layer files from a directory and store them in a list. 
-static_dir<- paste0(main_dir, "data/covariates/static")
-static_files<- list.files(static_dir, pattern = ".grd", full.names = TRUE)
+static_dir<- here::here("", "data/covariates/static")
+static_files<- list.files(static_dir, pattern = ".grd$", full.names = TRUE)
 static_layers<- vector("list", length(static_files))
 
 for(i in seq_along(static_files)){
@@ -121,8 +121,8 @@ summary(all_tows_with_static_covs)
 ## Dynamic covariates
 #####
 # Read in dynamic raster stack files from a directory and store them in a list. 
-dynamic_dir<- paste0(main_dir, "data/covariates/dynamic")
-dynamic_files<- list.files(dynamic_dir, pattern = ".grd", full.names = TRUE)
+dynamic_dir<- here::here("", "data/covariates/dynamic")
+dynamic_files<- list.files(dynamic_dir, pattern = ".grd$", full.names = TRUE)
 dynamic_stacks<- vector("list", length(dynamic_files))
 
 for(i in seq_along(dynamic_files)){
@@ -249,7 +249,7 @@ vast0<- vast_build_sdm(settings = vast_settings, extrap_grid = vast_extrap_grid_
 We've also written a function that can make some adjustments to the `vast0` base model. This becomes much more important later on, particularly to use the `Map` list in the TMB object to pool different parameters when running a seasonal model. For this basic example, we don't need to make any adjustments and can instead go right to the `vast_fit_sdm` function. Like the `vast_build_sdm` function, this fitting function is mostly just a wrapper around VAST's `fit_model` function.
 
 ```{r}
-vast_fitted<- vast_fit_sdm(vast_build_adjust = vast0, nmfs_species_code = 101, index_shapes = index_area_shapes, spatial_info_dir = here::here(""), out_dir = here::here("", "results"))
+vast_fitted<- vast_fit_sdm(vast_build_adjust = vast0, nmfs_species_code = 101, index_shapes = index_area_shapes, spatial_info_dir = here::here(""), out_dir = here::here("", "results/mod_fits"))
 ```
 
 ## Stage 7: Make inferences from the fitted model
@@ -265,7 +265,7 @@ ylim_use<- c(35, 50)
 ```{r}
 # Making the plots
 spat_grid<- raster(here::here("", "data/supporting/Rast0.25grid.grd"))
-design_plots<- vast_plot_design(vast_fit = vast_fitted, land = land_use, spat_grid = spat_grid, xlim = xlim_use, ylim = ylim_use, land_color = "#f0f0f0", out_dir = here::here("", "results"))
+design_plots<- vast_plot_design(vast_fit = vast_fitted, land = land_use, spat_grid = spat_grid, xlim = xlim_use, ylim = ylim_use, land_color = "#f0f0f0", out_dir = here::here("", "results/plots_maps"))
 design_plots
 ```
 
@@ -278,7 +278,7 @@ First, evaluating the fit of the model too the data. There are a variety of diff
 vast_fitted$Report$deviance
 
 # AIC
-vast_fitted$parameter_estimates$AIC
+as.numeric(vast_fitted$parameter_estimates$AIC)
 ```
 
 Next, after checking the model fit to the data, we can look at parameter estimates. For the fixed effect parameters, we can get their MLE as well as standard errors. For this first model, this is relatively simple since we just have a single fixed effect parameter for each year time step in the data.
@@ -292,14 +292,14 @@ Along with the fixed effect parameters, we might also have some random effects -
 
 ```{r}
 # First, spatial variability (omega) -- one layer for each model stage 
-vast_omega1_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Omega1_gc", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results"), land_color = "#d9d9d9")
-vast_omega2_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Omega2_gc", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results"), land_color = "#d9d9d9")
+vast_omega1_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Omega1_gc", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9")
+vast_omega2_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Omega2_gc", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9")
 vast_omega1_plot + vast_omega2_plot
 
 # Next, spatio-temporal variability (epsilon) -- one layer for each time step for each model stage
-vast_epsilon1_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Epsilon1_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
+vast_epsilon1_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Epsilon1_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
 vast_epsilon1_plot
-vast_epsilon2_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Epsilon2_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
+vast_epsilon2_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Epsilon2_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
 vast_epsilon2_plot
 ```
 
@@ -307,15 +307,15 @@ Finally, we can plot some of the derived products from the fitted VAST model. Al
 
 ```{r}
 # Extracting stratified biomass indices and plotting as a time series
-biomass_indices<- get_vast_index_timeseries(vast_fit = vast_fitted, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = here::here("", "results"))
+biomass_indices<- get_vast_index_timeseries(vast_fit = vast_fitted, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = here::here("", "results/tables"))
 
-plot_vast_index_timeseries(index_res_df = biomass_indices, index_scale = "raw", nice_category_names = "Atlantic halibut", nice_xlab = "Year", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = here::here("", "results"))
+plot_vast_index_timeseries(index_res_df = biomass_indices, index_scale = "raw", nice_category_names = "Atlantic halibut", nice_xlab = "Year", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = here::here("", "results/plots_maps"))
 ```
 
 
 ```{r}
 # Extracting and plotting predicted density at knot locations, smoothed over a regular grid
-vast_density_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "D_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
+vast_density_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "D_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
 vast_density_plot
 ```
 
@@ -362,29 +362,29 @@ vast0_hab_covs<- vast_build_sdm(settings = vast_settings, extrap_grid = vast_ext
 After confirming everything looks right, we can fit the new model. 
 ```{r}
 # Fit
-vast_fitted_hab_covs<- vast_fit_sdm(vast_build_adjust = vast0_hab_covs, nmfs_species_code = 101, index_shapes = index_area_shapes, spatial_info_dir = here::here(""), out_dir = here::here("", "results"))
+vast_fitted_hab_covs<- vast_fit_sdm(vast_build_adjust = vast0_hab_covs, nmfs_species_code = 1011, index_shapes = index_area_shapes, spatial_info_dir = here::here(""), out_dir = here::here("", "results/mod_fits"))
 ```
 
 ### Model inference
 As with our basic model, we can do a whole bunch of things after we've fit the model. For example, we could look at the estimated biomass and see how that compares to the basic model.
 ```{r}
-biomass_indices_habcovs<- get_vast_index_timeseries(vast_fit = vast_fitted_hab_covs, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = here::here("", "results"))
+biomass_indices_habcovs<- get_vast_index_timeseries(vast_fit = vast_fitted_hab_covs, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = here::here("", "results/tables"))
 
 unique(biomass_indices_habcovs$Index_Region)
 biomass_indices_habcovs$Index_Region<-  recode(biomass_indices_habcovs$Index_Region, "DFO" = "DFO_HabCovs", "NMFS" = "NMFS_HabCovs")
 
 biomass_indices_both<- bind_rows(biomass_indices, biomass_indices_habcovs)
 
-plot_vast_index_timeseries(index_res_df = biomass_indices_both, index_scale = "raw", nice_category_names = "Atlantic halibut", nice_xlab = "Year", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = here::here("", "results"))
+plot_vast_index_timeseries(index_res_df = biomass_indices_both, index_scale = "raw", nice_category_names = "Atlantic halibut", nice_xlab = "Year", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = here::here("", "results/plots_maps"))
 
 # Kind of ugly to look at, but could easily enough take and plot a difference or do whatever else you want.
 ```
 
 We could do similar comparisons with other shared parameters and derived products -- for example we could look at differences in predicted density. Beyond that, the other thing that might of interest now is visualizing the fitted smooth functions defining the relationship between species occurrence and the environmental variables. To do that, we can run our `get_vast_covariate_effects` and `plot_vast_covariate_effects` functions. 
 ```{r}
-vast_habcovs_effs<- get_vast_covariate_effects(vast_fit = vast_fitted_hab_covs, params_plot = c("Depth", "SST_seasonal", "BT_seasonal"), params_plot_levels = 100, effects_pad_values = c(), nice_category_names = "Atlantic halibut", out_dir = here::here("", "results"))
+vast_habcovs_effs<- get_vast_covariate_effects(vast_fit = vast_fitted_hab_covs, params_plot = c("Depth", "SST_seasonal", "BT_seasonal"), params_plot_levels = 100, effects_pad_values = c(), nice_category_names = "Atlantic halibut", out_dir = here::here("", "results/tables"))
 
 # Warnings are...interesting....
-vast_habcovs_plot<- plot_vast_covariate_effects(vast_covariate_effects = vast_habcovs_effs, vast_fit = vast_fitted_hab_covs, nice_category_names = "Atlantic halibut", out_dir = here::here("", "results"))
+vast_habcovs_plot<- plot_vast_covariate_effects(vast_covariate_effects = vast_habcovs_effs, vast_fit = vast_fitted_hab_covs, nice_category_names = "Atlantic halibut", out_dir = here::here("", "results/plots_maps"))
 vast_habcovs_plot
 ```

@@ -8,12 +8,9 @@ $Region
 [1] "User"
 
 $strata.limits
-        STRATA
-1          DFO
-2          GoM
-3 NMFS_and_DFO
-4         NMFS
-5  SNE_and_MAB
+  STRATA
+1    DFO
+2   NMFS
 
 $zone
 [1] NA
@@ -24,7 +21,7 @@ $FieldConfig
 
 $RhoConfig
    Beta1    Beta2 Epsilon1 Epsilon2 
-       2        2        2        2 
+       0        0        0        0 
 
 $VamConfig
 Method   Rank Timing 
@@ -40,10 +37,8 @@ $vars_to_correct
 [1] "Index_cyl" "Index_ctl"
 
 $Options
-        SD_site_logdensity            Calculate_Range 
-                     FALSE                       TRUE 
-  Calculate_effective_area treat_nonencounter_as_zero 
-                      TRUE                      FALSE 
+        SD_site_logdensity            Calculate_Range   Calculate_effective_area treat_nonencounter_as_zero 
+                     FALSE                       TRUE                       TRUE                      FALSE 
 
 $grid_size_km
 [1] 25
@@ -52,7 +47,7 @@ $max_cells
 [1] 4000
 
 $knot_method
-[1] "samples"
+[1] "grid"
 
 $Method
 [1] "Barrier"
