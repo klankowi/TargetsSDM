@@ -27,6 +27,9 @@ library(profvis)
 library(googledrive)
 library(PresenceAbsence)
 library(MLmetrics)
+library(gmRi)
+library(transformr)
+library(gganimate)
 
 # Source a bunch of "vast" helper function. These are all located here: https://github.com/aallyn/TargetsSDM. Working on getting this into a nicer package style. I think this could also change if you fork/clone the repo, then you can source from the local copies...
 source(here::here("", "R/nmfs_functions.R"))
@@ -353,8 +356,9 @@ knitr::include_graphics("results/plots_maps/Atlantic halibut_Epsilon1_gct.png")
 knitr::include_graphics("results/plots_maps/Atlantic halibut_Epsilon2_gct.png")
 ```
 
-Finally, we can plot some of the derived products from the fitted VAST model. Although other researchers might be interested in other inferences (e.g., parameter estimates/model selection), ultimately our interest is mostly in looking at these derived products and how they are effected by climate change. While we have written functions that focus on stratified biomass estimates and plotting predicted density, there are other derived products available, too (e.g., center of gravity). 
+Finally, we can plot some of the derived products from the fitted VAST model. Although other researchers might be interested in other inferences (e.g., parameter estimates/model selection), ultimately our interest is mostly in looking at these derived products and how they are effected by climate change. While we have written functions that focus on stratified biomass estimates and plotting predicted density, there are other derived products available, too. 
 
+First, we can extract and then plot the "stratified" biomass indices, where our strata are specified as the `index_shapefiles` spatial regions. 
 ```{r, eval = eval_use}
 # Extracting stratified biomass indices and plotting as a time series
 biomass_indices<- get_vast_index_timeseries(vast_fit = vast_fitted, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = here::here("", "results/tables"))
@@ -366,6 +370,7 @@ plot_vast_index_timeseries(index_res_df = biomass_indices, index_scale = "raw", 
 knitr::include_graphics("results/plots_maps/Biomass_Index_raw_Atlantic halibut.jpg")
 ```
 
+Next, plotting the predicted density from knot locations, smoothed over a regular grid. 
 ```{r, eval = eval_use}
 # Extracting and plotting predicted density at knot locations, smoothed over a regular grid
 vast_density_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "D_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$Year)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
@@ -373,6 +378,10 @@ vast_density_plot
 ```
 ```{r, eval = !eval_use, echo = FALSE, fig.cap = "Predicted density"}
 knitr::include_graphics("results/plots_maps/Atlantic halibut_D_gct.png")
+```
+
+Finally, plotting changes in the center of gravity. 
+```{r, eval = eval_use}
 ```
 
 # Adding complexity - habitat and catchability covariates
@@ -472,3 +481,5 @@ vast_habcovs_plot
 ```{r, eval = !eval_use, echo = FALSE, fig.cap = "Species-habitat covariate relationships", out.width = "50%"}
 knitr::include_graphics("results/plots_maps/Atlantic halibut_covariate_effects.jpg")
 ```
+
+`r insert_gmri_footer(footer_file = "aallyn_gmri_footer.html")`
