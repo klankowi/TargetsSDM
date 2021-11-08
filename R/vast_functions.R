@@ -2528,17 +2528,17 @@ vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mas
     panel_cols = NULL
     panel_rows = NULL
     
-    vast_fit = fit_barrier
-    spatial_var = "Epsilon1_gct"
+    vast_fit = vast_fitted
+    spatial_var = "D_gct"
     nice_category_names = "Atlantic halibut"
-    mask = shp
-    all_times = as.character(unique(Hali_data$EST_YEAR))
+    mask = region_shape
+    all_times = as.character(unique(vast_sample_data$EST_YEAR))
     plot_times = NULL
     land_sf = land_use
     xlim = xlim_use
     ylim = ylim_use
     panel_or_gif = "panel"
-    out_dir = here::here()
+    out_dir = here::here("", "results/plots_maps")
     land_color = "#d9d9d9"
     panel_cols = 6
     panel_rows = 7
@@ -2651,3 +2651,51 @@ vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mas
     }
   }
 }
+
+
+#' @title Get VAST point predictions
+#' 
+#' @description Generates a dataframe with observed and VAST model predictions at sample locations 
+#'
+#' @param vast_fit = A VAST `fit_model` object.
+#' @param use_PredTF_only = Logical TRUE/FALSE. If TRUE, then only the locations specified as PredTF == 1 will be extracted. Otherwise, all points will be included.
+#' @param out_dir = Output directory to save the dataset
+#' 
+#' @return A dataframe with lat, lon, observations and model predictions
+#'
+#' @export
+
+vast_get_point_preds<- function(vast_fit, use_PredTF_only, nice_category_names, out_dir){
+  if(FALSE){
+    vast_fit = vast_fitted
+    use_PredTF_only = FALSE
+    nice_category_names<- "Atlantic halibut"
+    out_dir = here::here("", "results/tables")
+  }
+  
+  # Collecting the sample data
+  samp_dat<- vast_fit$data_frame %>%
+    dplyr::select(., Lat_i, Lon_i, b_i, t_i)
+  names(samp_dat)<- c("Lat", "Lon", "Biomass", "Year")
+  samp_dat$Presence<- ifelse(samp_dat$Biomass > 0, 1, 0)
+  
+  # Now, getting the model predictions
+  pred_dat<- vast_fit$Report
+  
+  # Combine em
+  samp_pred_out<- data.frame(samp_dat, "Predicted_ProbPresence" = pred_dat$R1_i, "Predicted_Biomass" = pred_dat$D_i)
+  
+  # Add PredTF column -- this is 1 if the sample is only going to be used in predicted probability and NOT in estimating the likelihood
+  samp_pred_out$PredTF_i<- vast_fit$data_list$PredTF_i
+  
+  # Subset if use_PredTF_only is TRUE
+  if(use_PredTF_only){
+    samp_pred_out<- samp_pred_out %>%
+      dplyr::filter(., PredTF_i == 1)
+  }
+  
+  # Save and return it
+  saveRDS(samp_pred_out, paste0(out_dir, "/", nice_category_names, "_obs_pred.rds"))
+  return(samp_pred_out)
+}
+

@@ -1,8 +1,15 @@
 ---
-title: "VAST Species Distribution Model Workflow Vingette"
+title: "VAST Species Distribution Model Workflow Vignette"
 author: "Andrew Allyn"
-date: "10/29/2021"
-output: html_document
+date: "Updated on: `r Sys.Date()`"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float:
+        collapsed: TRUE
+    code_folding: hide
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include = FALSE}
@@ -18,6 +25,8 @@ library(akima)
 library(lubridate)
 library(profvis)
 library(googledrive)
+library(PresenceAbsence)
+library(MLmetrics)
 
 # Source a bunch of "vast" helper function. These are all located here: https://github.com/aallyn/TargetsSDM. Working on getting this into a nicer package style. I think this could also change if you fork/clone the repo, then you can source from the local copies...
 source(here::here("", "R/nmfs_functions.R"))
@@ -25,6 +34,10 @@ source(here::here("", "R/dfo_functions.R"))
 source(here::here("", "R/combo_functions.R"))
 source(here::here("", "R/covariate_functions.R"))
 source(here::here("", "R/vast_functions.R"))
+source(here::here("", "R/SDM_PredValidation_Functions.R"))
+
+# Run?
+eval_use<- FALSE
 ```
 
 ```{r, echo = FALSE}
@@ -35,13 +48,13 @@ gmRi::use_gmri_style_rmd(css_file = "gmri_rmarkdown.css")
 # Overview
 This vignette walks through the species distribution modeling process using Jim Thorson's Vector Autoregressive Spatio-Temporal (VAST) modeling approach. We break this modeling workflow process into eight stages. For each stage, we have developed functions that we hope will help make the modeling process more efficient. Importantly, if you already have what we would describe as a "tidy model dataset" then you can skip ahead a bit and work from stage 5, where a "tidy model dataset" has each row as a unique tow/species/catch record along with values for any covariates we would want to include in the species distribution model as additional columns.
 
-Ultimately, we have leveraged these functions and linked the different stages together using R {targets} package to create an integrated, "smart" workflow. However, for this vingette, we walk through the different stages outside of the {targets} style implementation as we don't anticipate that everyone will use the {targets} workflow implementation.
+Ultimately, we have leveraged these functions and linked the different stages together using R {targets} package to create an integrated, "smart" workflow. However, for this vignette, we walk through the different stages outside of the {targets} style implementation as we don't anticipate that everyone will use the {targets} workflow implementation.
 
 Finally, for folks who are new to the VAST modeling framework, we suggest starting with the "VAST for Beginners" RMarkdown document. This document takes a deeper dive into the VAST modeling approach to dissect the different components and provide more context on model outputs. 
 
 # The basic workflow
 ## Stage 0: Installing dvc and pulling data
-Although this vignette is relatively simple, we do use some rather large datasets. To share these, we have placed a data folder in Google drive remote storage. The simplest way to access these data is to first download dvc by following the instructions (here)[https://dvc.org/doc/install] depending on your operating system. Alternatively, if you've already got your own processed dataset, you can skip ahead to stage #4. This processed dataset should be a "tidy" occupancy dataset, where each row is a unique sample location with species occupancy information and any associated covariate values (e.g., column headings for lat, lon, date, species, biomass, depth, sst). 
+Although this vignette is relatively simple, we do use some rather large datasets. To share these, we have placed a data folder in Google drive remote storage. The simplest way to access these data is to first download dvc by following the instructions [here](https://dvc.org/doc/install) depending on your operating system. Alternatively, if you've already got your own processed dataset, you can skip ahead to [Stage 4: Making VAST datasets]. This processed dataset should be a "tidy" occupancy dataset, where each row is a unique sample location with species occupancy information and any associated covariate values (e.g., column headings for lat, lon, date, species, biomass, depth, sst). 
 
 After the installation is complete, open up a new terminal window and navigate to your local forked copy of this repo. For example, if the forked copy was cloned to `~/GitHub/TargetsSDM`, you would type `cd ~/GitHub/TargetsSDM` into the terminal window. Then, once you are in the right directory, type `dvc pull`. This will likely take a moment as you are pulling down all of the data needed to run the vignette from the Google drive remote storage. Along with some of the raw tow and occupancy data, we have also included data for potential covariates and some shapefiles to use when making maps. 
 
@@ -50,7 +63,7 @@ The first stage of the species distribution modeling process is preparing the da
 
 For this step, we have a suite of functions that we use to work specifically with the NOAA NMFS Northeast Fisheries Science Center spring and fall bottom trawl survey and Department of Fisheries and Oceans Canada summer bottom trawl survey. We walk through these steps and show the functions. However, we expect that other users will likely have their own "raw" data files and will do their own preparation process. 
 
-```{r}
+```{r, eval = eval_use}
 # Setting directories for the raw data files 
 nmfs_dat_dir<- here::here("", "data/nmfs/raw")
 dfo_dat_dir<- here::here("", "data/dfo/raw")
@@ -78,7 +91,7 @@ all_occu<- bind_nmfs_dfo_tidy_occu(nmfs_tidy_occu = nmfs_occu, dfo_tidy_occu = d
 ```
 
 As we mentioned above, we don't expect that all users are going to use these same prep functions. That said, it is important that the structure of the `all_tows` dataframe and the `all_occu` dataframe have a similar structure to use the other functions. **Improvements could certainly made here to make things even more flexible**. At a minimum, `all_tows` should have columns named: `EST_YEAR`,  `DECDEG_BEGLAT`, `DECDEG_BEGLON`, `ID`, `DATE` (in YYY-MM-DD format) and `SEASON` and `SURVEY` (if applicable and fitting seasonal model or a model using survey as a catchability factor). `all_occu` should have columns named `ID`, `PRESENCE`, `BIOMASS`, `ABUNDANCE`, `SURVEY` and then a column with a species ID code. 
-```{r}
+```{r, eval = eval_use}
 tow_name_check<- c("ID", "DATE", "EST_YEAR", "DECDEG_BEGLAT", "DECDEG_BEGLON")
 all(tow_name_check %in% names(all_tows))
 
@@ -92,7 +105,7 @@ After we have prepped the `all_tows` and `all_occu` dataframes, we enhance the t
 
 For this vingette, we will go ahead and enance the tow data by extracting depth, a seasonal sea surface temperature and a seasonal bottom temperature at each of the tow locations. Additionally, we will use some conveinance wrapper functions (`static_extract_wrapper` and `dynamic_2d_extract_wrapper`) that we wrote. These wrappers help process multiple different static raster layers or dynamic raster stacks that are stored in list. Additionally, we will run the `static_extract_wrapper` (and `static_extract`) function first and then run the `dynamic_2d_extract_wrapper` and `dynamic_2d_extract` function.
 
-```{r}
+```{r, eval = eval_use}
 #####
 ## Static covariates
 #####
@@ -140,7 +153,7 @@ summary(all_tows_with_all_covs)
 ```
 
 At this point, we add an additional processing step that rescales our covariate values. Some species distribution modeling approaches are going to do this atuomatically for us (e.g., mgcv::gam centers and scales variables). VAST, however, does not. So, we do that explicitly here before moving onto stage 3. During this rescaling process, we also save the scaling information for each of the covariates. This is important if later on we want to bring in new data to make predictions so that we can rescale the new values using the same scaling parameters. 
-```{r}
+```{r, eval = eval_use}
 # Rescale
 depth_cut<- 500 # Most sampling occurs on the shelf, just a few rogue off shelf observations and don't want those influencing parameter estimates/model fit
 all_tows_with_all_covs_rescale<- rescale_all_covs(all_tows_with_all_covs, depth_cut = depth_cut, type = "AJA", center = TRUE, scale = TRUE, out_dir = here::here("", "data/combined"))
@@ -152,7 +165,7 @@ rescale_params<- get_rescale_params(all_tows_with_all_covs, depth_cut = depth_cu
 ## Stage 3: Make a tidy model dataframe
 Now that we have covariate values at each of the tow locations, we can wrap up the "prep and enhancement" stages by merging these data back with our occupancy dataframe to create a tidy model dataframe. This dataframe has a row for every unique tow-species-catch observation, as well as additional columns with the values for any of the covariates we might be interested in including as predictor variables in our species distribution model. 
 
-```{r}
+```{r, eval = eval_use}
 tidy_mod_data<- make_tidy_mod_data(all_tidy_occu = all_occu, all_tows = all_tows_with_all_covs_rescale, out_dir = here::here("", "data/combined"))
 summary(tidy_mod_data)
 head(tidy_mod_data)
@@ -169,7 +182,7 @@ In this vignette, we will start with a very basic model that has no covariates a
 
 *Quick naming note!* For our workflow, we try to be very explicit about the dataframes passed to the VAST modeling engine. There are some expectations, both with VAST functions and with some of our helper functions, about naming conventions. So, I guess that is all just to say when in doubt err on the side of following the naming conventions used here. 
 
-```{r}
+```{r, eval = eval_use}
 # Filter tidy model data to keep only one species of interest -- Halibut in this case
 tidy_mod_data_run<- tidy_mod_data %>%
   dplyr::filter(., DFO_SPEC == 30)
@@ -183,7 +196,7 @@ Along with the key dataframes (i.e., "sample", "covariate" and "catchability" da
 
 *A note about the extrapolation grid* One of the key things happening behind the scenes with the extrapolation grid is assigning each of the grid locations to a different strata (or regions), which then allows us to get overall stratified biomass indices. This spatial overlay or filtering is done based on the `strata.limits` argument within `FishStatsUtils::make_extrapolation_info` and there are some nice options available where we could specify strata based on a numeric value, depth gradients, or lat/lon bounding boxes. With an interest in biomass indices based on shapefiles (rather than a specific box), we did some work to accommodate this and wrote a few new functions -- a `make_extrapolation_info_aja` function that uses `Prepare_User_Extrapolation_Data_Fn_aja` and accommodates a `sf` multipolygon shapefile as input to generate biomass indices within the spatial regions defined by the polygon.
 
-```{r}
+```{r, eval = eval_use}
 # First, we need our region shapefile
 region_shape<- st_read(here::here("", "data/supporting/region_shapefile/full_survey_region.shp"))
 
@@ -223,7 +236,7 @@ vast_extrap_grid_nona<- vast_extrap_grid %>%
 
 Similarly, we have a `vast_make_settings` function that uses `FishStatsUtils::make_settings` and has a bit more flexibility to accommodate our own extrapolation grid while also requiring us to be a bit more explicit about the setting passed to the VAST modeling engine. For example, we could specify `purpose = "index2"` within the a `FishStatsUtils::make_settings` call or a `FishStatsUtils::fit_model` call and this would trigger a specific model configuration for spatial (omega), spatio-temporal variability (epsilon) and other model parameters. Rather than using those defaults, we would suggest explicitly generating those settings.
 
-```{r}
+```{r, eval = eval_use}
 # First, the field and rho configuration settings. Field config sets up the spatial/spatio-temporal components and how many factors should be estimated. Rho config sets up autoregressive structure on intercepts and spatio-temporal components.
 field_config<- c("Omega1" = 1, "Epsilon1" = 1, "Omega2" = 1, "Epsilon2" = 1)
 rho_config<- c("Beta1" = 0, "Beta2" = 0, "Epsilon1" = 0, "Epsilon2" = 0)
@@ -233,7 +246,7 @@ vast_settings<- vast_make_settings(extrap_grid = vast_extrap_grid_nona, n_knots 
 ```
 
 The last component to the "settings" is defining the configuration of the different habitat and catchability covariates. There's a variety of different options available here. For example, we could have a spatially-varying effect of sea surface temperature as a habitat covariate. To start, we will just set these to `NULL` as we don't have any habitat or catchability covariates in our model. 
-```{r}
+```{r, eval = eval_use}
 # Make covariate configuration bits...just NULL for now
 vast_coveff<- list("X1config_cp" = NULL, "X2config_cp" = NULL, "Q1config_k" = NULL, "Q2config_k" = NULL)
 ```
@@ -241,39 +254,43 @@ vast_coveff<- list("X1config_cp" = NULL, "X2config_cp" = NULL, "Q1config_k" = NU
 ## Stage 6: Fit the VAST model
 We are finally getting to the good stuff! Now that we have our datasets, the extrapolation grid, and the model settings, we can go ahead and fit a VAST model! You could certainly do this with the `fit_model` wrapper. To continue with the use of the sf multipolygon shapefile to specify different regions and with an eye towards the "full" workflow that we implemented, we are going to use our `vast_build_sdm` function that calls `fit_model`.
 
-```{r}
+```{r, eval = eval_use}
 # Running the `vast_build_sdm` function to get everything ready to go while not estimating parameters, yet, as `run_model = FASLE`
 vast0<- vast_build_sdm(settings = vast_settings, extrap_grid = vast_extrap_grid_nona, sample_data = vast_sample_data, covariate_data = NULL, X1_formula = NULL, X2_formula = NULL, Q1_formula = NULL, Q2_formula = NULL, Xconfig_list = vast_coveff, X_contrasts = NULL, index_shapes = index_area_shapes, spatial_info_dir = here::here(""))
 ```
 
 We've also written a function that can make some adjustments to the `vast0` base model. This becomes much more important later on, particularly to use the `Map` list in the TMB object to pool different parameters when running a seasonal model. For this basic example, we don't need to make any adjustments and can instead go right to the `vast_fit_sdm` function. Like the `vast_build_sdm` function, this fitting function is mostly just a wrapper around VAST's `fit_model` function.
 
-```{r}
+```{r, eval = eval_use}
 vast_fitted<- vast_fit_sdm(vast_build_adjust = vast0, nmfs_species_code = 101, index_shapes = index_area_shapes, spatial_info_dir = here::here(""), out_dir = here::here("", "results/mod_fits"))
 ```
 
 ## Stage 7: Make inferences from the fitted model
 Success (hopefully)! Now that we've got our fitted model, what can we do? The first thing we might want to do is check out some maps that show our observations, the spatial extrapolation grid, and the INLA mesh as the extrapolation grid and the INLA mesh are really important "behind the scenes" components. We've written a function to make these plots from the fitted vast model, though, this is also something we'd recommend doing before the model fitting, too.  
 
-```{r}
+```{r, eval = eval_use}
 # A land shapefile and setting lon/lat limits
 land_use<- st_read(here::here("", "data/supporting/land_shapefile/ne_50m_land.shp"))
 xlim_use<- c(-80, -55)
 ylim_use<- c(35, 50)
 ```
 
-```{r}
+```{r, eval = eval_use}
 # Making the plots
 spat_grid<- raster(here::here("", "data/supporting/Rast0.25grid.grd"))
 design_plots<- vast_plot_design(vast_fit = vast_fitted, land = land_use, spat_grid = spat_grid, xlim = xlim_use, ylim = ylim_use, land_color = "#f0f0f0", out_dir = here::here("", "results/plots_maps"))
 design_plots
 ```
 
+```{r, eval = !eval_use, echo = FALSE, fig.cap = "Sample data, VAST extrapolation grid, and VAST/INLA Mesh"}
+knitr::include_graphics("results/plots_maps/samples_grid_knots_plot.jpg")
+```
+
 After confirming that things look "okay" (e.g., the grid has the extent and grain we are hoping for and then mesh is behaving nicely), we can then dig into the fitted model. In the next few code chunks, we go through a relatively simple process to evaluate the fit of the model to the data, extract some parameter estimates. Finally we have made some functions that generate plots of derived products (biomass indices within each of the strata, predicted density from knots smoothed to a regular grid), and some of the spatial parameters (omega for the spatial variability and epsilon for the spatio-temporal variability). 
 
 First, evaluating the fit of the model too the data. There are a variety of different statistics that you could use to make this inference. Here we look at deviance explained and AIC, both model fit to data metrics which might also be used in model comparisons, too.
 
-```{r}
+```{r, eval = eval_use}
 # Deviance explained -- this will only work with VAST > 3.7.1 and you might need to set the "report_additional_variables" = TRUE in options, too.
 vast_fitted$Report$deviance
 
@@ -281,42 +298,81 @@ vast_fitted$Report$deviance
 as.numeric(vast_fitted$parameter_estimates$AIC)
 ```
 
-Next, after checking the model fit to the data, we can look at parameter estimates. For the fixed effect parameters, we can get their MLE as well as standard errors. For this first model, this is relatively simple since we just have a single fixed effect parameter for each year time step in the data.
+Beyond just evaluating the model fit to the data, we might also have set up a situation to validate the model by investigating its predictive skill to hold out, testing data. This is all done through the `PredTF` column, with a value of 1 signaling TMB to use the observation in the predictive probability but NOT use the observation in estimating the joint negative log-likelihood. There are a slew of different validation metrics we might be interested in calculating. Below, we give an example that calculates a specific metric from a "observation_prediction" dataframe. Then, we plot a Taylor Diagram as a way of visualizing multiple different components to model prediction skill.
+```{r, eval = eval_use}
+# Get the observation and prediction dataframe
+obs_pred0<- vast_get_point_preds(vast_fit = vast_fitted, use_PredTF_only = FALSE, nice_category_names = "Atlantic halibut", out_dir = here::here("", "results/tables"))
 
-```{r}
+# Despite it's limitations, AUC is incredibly popular for presence/absence occurrence models. So, just showing how we can quickly get that statistic from this data frame
+auc0<- AUC(y_pred = obs_pred0$Predicted_ProbPresence, y_true = obs_pred0$Presence)
+auc0
+
+# A Taylor Diagram to look at predictive skill in biomass
+taylor_diag0<- taylor_diagram_func(dat = obs_pred0, obs = "Biomass", mod = "Predicted_Biomass", pt.col = "#d95f02", out.file = paste0(here::here("", "results/plots_maps"), "/Atlantic halibut_base_TaylorDiagram.jpg"))
+taylor_diag0
+```
+```{r, eval = !eval_use, echo = FALSE, fig.cap = "VAST base model Taylor Diagram to assess model predictive skill."}
+knitr::include_graphics("results/plots_maps/Atlantic halibut_TaylorDiagram.jpg")
+```
+
+Next, after checking the model fit to the data and its predictive skill, we can look at parameter estimates. For the fixed effect parameters, we can get their MLE as well as standard errors. For this first model, this is relatively simple since we just have a single fixed effect parameter for each year time step in the data.
+
+```{r, eval = eval_use}
 # Parameter estimates and standard errors
 vast_fitted$parameter_estimates$SD
 ```
 
 Along with the fixed effect parameters, we might also have some random effects -- especially if we have turned on the spatial (omega) or spatio-temporal (epsilon) variability model components. We've written a `vast_fit_plot_spatial` function that helps visualize these random effect surfaces.  
 
-```{r}
-# First, spatial variability (omega) -- one layer for each model stage 
-vast_omega1_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Omega1_gc", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9")
-vast_omega2_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Omega2_gc", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9")
-vast_omega1_plot + vast_omega2_plot
+First, spatial variability (omega) -- one layer for each model stage.
 
-# Next, spatio-temporal variability (epsilon) -- one layer for each time step for each model stage
-vast_epsilon1_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Epsilon1_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
+```{r, eval = eval_use}
+# First, spatial variability (omega) -- one layer for each model stage 
+vast_omega1_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Omega1_gc", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$Year)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9")
+vast_omega2_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Omega2_gc", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$Year)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9")
+vast_omega1_plot + vast_omega2_plot
+```
+```{r, eval = !eval_use, echo = FALSE, fig.cap = "Estimated persistent spatial variability in first linear predictor", out.width = "50%"}
+knitr::include_graphics("results/plots_maps/Atlantic halibut_Omega1_gc.png")
+```
+```{r, eval = !eval_use, echo = FALSE, fig.cap = "Estimated persistent spatial variability in second linear predictor", out.width = "50%"}
+knitr::include_graphics("results/plots_maps/Atlantic halibut_Omega2_gc.png")
+```
+
+Next, spatio-temporal variability (epsilon) -- one layer for each time step for each model stage
+```{r, eval = eval_use}
+vast_epsilon1_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Epsilon1_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$Year)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
 vast_epsilon1_plot
-vast_epsilon2_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Epsilon2_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
+vast_epsilon2_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "Epsilon2_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$Year)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
 vast_epsilon2_plot
+```
+```{r, eval = !eval_use, echo = FALSE, fig.cap = "Estimated ephemeral spatio-temporal variability in first linear predictor"}
+knitr::include_graphics("results/plots_maps/Atlantic halibut_Epsilon1_gct.png")
+```
+```{r, eval = !eval_use, echo = FALSE, fig.cap = "Estimated ephemeral spatio-temporal variability in second linear predictor"}
+knitr::include_graphics("results/plots_maps/Atlantic halibut_Epsilon2_gct.png")
 ```
 
 Finally, we can plot some of the derived products from the fitted VAST model. Although other researchers might be interested in other inferences (e.g., parameter estimates/model selection), ultimately our interest is mostly in looking at these derived products and how they are effected by climate change. While we have written functions that focus on stratified biomass estimates and plotting predicted density, there are other derived products available, too (e.g., center of gravity). 
 
-```{r}
+```{r, eval = eval_use}
 # Extracting stratified biomass indices and plotting as a time series
 biomass_indices<- get_vast_index_timeseries(vast_fit = vast_fitted, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = here::here("", "results/tables"))
 
 plot_vast_index_timeseries(index_res_df = biomass_indices, index_scale = "raw", nice_category_names = "Atlantic halibut", nice_xlab = "Year", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = here::here("", "results/plots_maps"))
 ```
 
+```{r, eval = !eval_use, echo = FALSE, fig.cap = "'Stratified' biomass index"}
+knitr::include_graphics("results/plots_maps/Biomass_Index_raw_Atlantic halibut.jpg")
+```
 
-```{r}
+```{r, eval = eval_use}
 # Extracting and plotting predicted density at knot locations, smoothed over a regular grid
-vast_density_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "D_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$EST_YEAR)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
+vast_density_plot<- vast_fit_plot_spatial(vast_fit = vast_fitted, spatial_var = "D_gct", nice_category_names = "Atlantic halibut", mask = region_shape, all_times = as.character(unique(vast_sample_data$Year)), plot_times = NULL, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, panel_or_gif = "panel", out_dir = here::here("", "results/plots_maps"), land_color = "#d9d9d9", panel_cols = 6, panel_rows = 7)
 vast_density_plot
+```
+```{r, eval = !eval_use, echo = FALSE, fig.cap = "Predicted density"}
+knitr::include_graphics("results/plots_maps/Atlantic halibut_D_gct.png")
 ```
 
 # Adding complexity - habitat and catchability covariates
@@ -328,13 +384,13 @@ Working through the basic workflow and fitting the "simple" VAST model is no sma
 ### Model building and fitting
 Let's start by adding in some habitat covariates. Hopefully, this process looks somewhat familiar to those have have fit an "environment-only" species distribution model where we are including some static/dynamic values for variables that we think influence a species occurrence pattern. With many modeling approaches, all of this information can be in one dataframe -- similar to our tidy model dataframe. With VAST, we actually want to separate out a specific "covariate data" dataframe. 
 
-```{r}
+```{r, eval = eval_use}
 # We will need a covariate data frame
 vast_covariate_data<- data.frame("Year" = tidy_mod_data_run$EST_YEAR, "Depth" = tidy_mod_data_run$Depth, "SST_seasonal" = tidy_mod_data_run$SST_seasonal, "BT_seasonal" = tidy_mod_data_run$BT_seasonal, "Lat" = tidy_mod_data_run$DECDEG_BEGLAT, "Lon" = tidy_mod_data_run$DECDEG_BEGLON)
 ```
 
 After we've gotten our "covariate data" dataframe created, then we can start to think about how we think these covariate values are related to our response variable (e.g., species presence/absence or positive biomass). We do this by creating a `hab_formula` habitat formula. There is a lot of flexibility here. For example. we could easily say that these relationships are linear, or quadratic. Rather than prescribe something, we are going to assume that these relationships are non-linear, with some limitations to how "wiggly" they can be. Conceptually, this approach is identical to using a generalized additive model with smooth terms for each of the covariates. The "wiggliness" is determined by the degree, which we set to 3. 
-```{r}
+```{r, eval = eval_use}
 # Model formula
 gam_degree<- 3
 hab_formula<- ~ bs(Depth, degree = 3, intercept = FALSE) + bs(SST_seasonal, degree = 3, intercept = FALSE) + bs(BT_seasonal, degree = 3, intercept = FALSE) 
@@ -343,7 +399,7 @@ hab_env_coeffs_n<- length(attributes(terms.formula(hab_formula))$term.labels)
 
 In addition to a flexibility in the model formula, VAST also provides a generous number of options in thinking about whether the structure for the parameters defining these covariate species-environment relationships. One option folks may already be familiar with is a spatially-varying coefficient model. As an example, here in the northwest Atlantic, we might include something like the north wall of the Gulf Stream index as a covariate value. Rather than assuming the relationship between species occurrence and the Gulf Stream index value is constant throughout the entire domain, we might suspect that this relationship varies depending on where in the ecosystem a species is located. We can account for that with a spatially-varying coefficient model. *A quick aside here, but this is how we can creatively include "year" and "season" within a seasonal model down the road.* 
 
-```{r}
+```{r, eval = eval_use}
 # Also going to need to adjust our vast_coveff as we will now be including habitat covariates in the X1 and X2 formula. Additionally, some modification as we will be using splines::bs of three degrees
 vast_coveff_habcovs<- vast_make_coveff(X1_coveff_vec = rep(rep(1, gam_degree), hab_env_coeffs_n), X2_coveff_vec = rep(rep(1, gam_degree), hab_env_coeffs_n), Q1_coveff_vec = NULL, Q2_coveff_vec = NULL)
 ```
@@ -354,20 +410,45 @@ We've now got everything we need to build our new VAST model. To recap, and doub
 -  An ephemeral spatio-temporal random effect for each time step (epsilon),
 -  A smooth spline function, with associated parameters, for each habitat covariate estimated as fixed effects.
 
-```{r}
+```{r, eval = eval_use}
 # Build
 vast0_hab_covs<- vast_build_sdm(settings = vast_settings, extrap_grid = vast_extrap_grid_nona, sample_data = vast_sample_data, covariate_data = vast_covariate_data, X1_formula = hab_formula, X2_formula = hab_formula, Q1_formula = NULL, Q2_formula = NULL, Xconfig_list = vast_coveff_habcovs, X_contrasts = NULL, index_shapes = index_area_shapes, spatial_info_dir = here::here(""))
 ```
 
 After confirming everything looks right, we can fit the new model. 
-```{r}
+```{r, eval = eval_use}
 # Fit
 vast_fitted_hab_covs<- vast_fit_sdm(vast_build_adjust = vast0_hab_covs, nmfs_species_code = 1011, index_shapes = index_area_shapes, spatial_info_dir = here::here(""), out_dir = here::here("", "results/mod_fits"))
 ```
 
 ### Model inference
-As with our basic model, we can do a whole bunch of things after we've fit the model. For example, we could look at the estimated biomass and see how that compares to the basic model.
-```{r}
+One of the first things we might be interested in is comparing the new model with habitat covariates to the base model (`vast0`). There are a variety of different approaches for model comparison. Here, we are most interested in model predictive skill. After getting our "observed and predicted" dataset for the new model, we can then compare different predictive skill statistics. Additionally, we can plot the two models on the same Taylor Diagram, which gives an easy way of discerning the performance of each model relative to one another.
+
+```{r, eval = eval_use}
+# Get observation and prediction dataset
+obs_pred_habcovs<- vast_get_point_preds(vast_fit = vast_fitted_hab_covs, use_PredTF_only = FALSE, nice_category_names = "Atlantic halibut_habcovs", out_dir = here::here("", "results/tables"))
+
+# Calculate AUC and compare to auc0 from basic model
+auc_habcovs<- AUC(y_pred = obs_pred_habcovs$Predicted_ProbPresence, y_true = obs_pred_habcovs$Presence)
+auc_habcovs - auc0
+
+# Combine both observation and prediction datasets, while creating a new "group" column. 
+obs_pred0$Model<- rep("Base", nrow(obs_pred0))
+obs_pred_habcovs$Model<- rep("HabCovs", nrow(obs_pred_habcovs))
+
+obs_pred_both<- bind_rows(obs_pred0, obs_pred_habcovs)
+
+# A Taylor Diagram to look at predictive skill in biomass
+taylor_diag_comp<- taylor_diagram_func(dat = obs_pred_both, obs = "Biomass", mod = "Predicted_Biomass", group = "Model", pt.cols = c("#d95f02", "#7570b3"), shapes = c(19, 19), out.file = paste0(here::here("", "results/plots_maps"), "/Atlantic halibut_comp_TaylorDiagram.jpg"))
+taylor_diag_comp
+```
+```{r, eval = !eval_use, echo = FALSE, fig.cap = "Comparing predictive skill of base model and model with habitat covariates", out.width = "50%"}
+knitr::include_graphics("results/plots_maps/Atlantic halibut_comp_TaylorDiagram.jpg")
+```
+
+
+As with our basic model, we can do a whole bunch of things after we've fit and evaluted/validated the model. For example, we could look at the estimated biomass and see how that compares to the basic model.
+```{r, eval = eval_use}
 biomass_indices_habcovs<- get_vast_index_timeseries(vast_fit = vast_fitted_hab_covs, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = here::here("", "results/tables"))
 
 unique(biomass_indices_habcovs$Index_Region)
@@ -381,10 +462,13 @@ plot_vast_index_timeseries(index_res_df = biomass_indices_both, index_scale = "r
 ```
 
 We could do similar comparisons with other shared parameters and derived products -- for example we could look at differences in predicted density. Beyond that, the other thing that might of interest now is visualizing the fitted smooth functions defining the relationship between species occurrence and the environmental variables. To do that, we can run our `get_vast_covariate_effects` and `plot_vast_covariate_effects` functions. 
-```{r}
+```{r, eval = eval_use}
 vast_habcovs_effs<- get_vast_covariate_effects(vast_fit = vast_fitted_hab_covs, params_plot = c("Depth", "SST_seasonal", "BT_seasonal"), params_plot_levels = 100, effects_pad_values = c(), nice_category_names = "Atlantic halibut", out_dir = here::here("", "results/tables"))
 
 # Warnings are...interesting....
 vast_habcovs_plot<- plot_vast_covariate_effects(vast_covariate_effects = vast_habcovs_effs, vast_fit = vast_fitted_hab_covs, nice_category_names = "Atlantic halibut", out_dir = here::here("", "results/plots_maps"))
 vast_habcovs_plot
+```
+```{r, eval = !eval_use, echo = FALSE, fig.cap = "Species-habitat covariate relationships", out.width = "50%"}
+knitr::include_graphics("results/plots_maps/Atlantic halibut_covariate_effects.jpg")
 ```
