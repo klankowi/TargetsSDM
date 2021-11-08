@@ -67,11 +67,11 @@ make_vast_predict_df<- function(predict_covariates_stack_agg, extra_covariates_s
   ## Need to figure out what to do about depth here!!!
   
   # Get raster stack covariate files
-  rast_files_load<- list.files(predict_covariates_stack_agg, pattern = paste0(summarize, "_", ensemble_stat, ".grd"), full.names = TRUE)
+  rast_files_load<- list.files(predict_covariates_stack_agg, pattern = paste0(summarize, "_", ensemble_stat, ".grd$"), full.names = TRUE)
   
   # Get variable names
-  cov_names_full<- list.files(predict_covariates_stack_agg, pattern = paste0(summarize, "_", ensemble_stat, ".grd"), full.names = FALSE)
-  predict_covs_names<- gsub(paste("_", ensemble_stat, ".grd", sep = ""), "", gsub("predict_stack_", "", cov_names_full))
+  cov_names_full<- list.files(predict_covariates_stack_agg, pattern = paste0(summarize, "_", ensemble_stat, ".grd$"), full.names = FALSE)
+  predict_covs_names<- gsub(paste("_", ensemble_stat, ".grd$", sep = ""), "", gsub("predict_stack_", "", cov_names_full))
   
   # Looping through prediction stack time steps 
   for(i in 1:nlayers(raster::stack(rast_files_load[1]))){

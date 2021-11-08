@@ -7,7 +7,7 @@
 static_covariates_read<- function(static_covariates_dir){
   
   # Get the files...
-  rast_read_layers<- list.files(static_covariates_dir, pattern = ".grd")
+  rast_read_layers<- list.files(static_covariates_dir, pattern = ".grd$")
   
   # Output storage
   static_covariate_rasters_out<- vector(mode = "list", length = length(rast_read_layers))
@@ -25,7 +25,7 @@ static_covariates_read<- function(static_covariates_dir){
 dynamic_covariates_read<- function(dynamic_covariates_dir){
   
   # Get the files...
-  rast_read_stacks<- list.files(dynamic_covariates_dir, pattern = ".grd")
+  rast_read_stacks<- list.files(dynamic_covariates_dir, pattern = ".grd$")
   
   # Output storage
   dynamic_covariate_rasters_out<- vector(mode = "list", length = length(rast_read_stacks))
@@ -500,11 +500,12 @@ get_rescale_params<- function(all_tows_with_all_covs, depth_cut, out_dir){
 #' @export
 predict_covariates_stack_agg<- function(predict_covariates_dir, ensemble_stat, resample_template, summarize, out_dir){
   if(FALSE){
-    predict_covariates_dir = "~/Box/RES_Data/CMIP6/BiasCorrected"
+    tar_load(predict_covariates_raw_dir) 
+    predict_covariates_dir<- predict_covariates_raw_dir
     ensemble_stat = "mean"
-    resample_template = here::here("scratch/aja/TargetsSDM/data/supporting/", "Rast0.25grid.grd")
     summarize = "seasonal"
-    out_dir = here::here("scratch/aja/TargetsSDM/data/predict")
+    resample_template = here::here("data/supporting", "Rast0.25grid.grd")
+    out_dir = here::here("data/predict")
   }
   
   # Quick check, ensemble stat needs to be one of mean, 5th or 95th
@@ -516,11 +517,12 @@ predict_covariates_stack_agg<- function(predict_covariates_dir, ensemble_stat, r
   month_season_table<- data.frame("Month" = str_pad(seq(from = 1, to = 12, by = 1), 2, "left", 0), "Season" = c("Winter", "Winter", "Spring", "Spring", "Spring", "Summer", "Summer", "Summer", "Fall", "Fall", "Fall", "Winter"))
   
   # First, get the files that match our ensemble statistic
-  rast_files_load<- list.files(predict_covariates_dir, pattern = paste0(ensemble_stat, ".grd"), full.names = TRUE)
+  rast_files_load<- list.files(predict_covariates_dir, pattern = paste0(ensemble_stat, ".grd$"), full.names = TRUE)
   
   for(i in seq_along(rast_files_load)){
     
     # Bring in the stack
+    print(rast_files_load[i])
     rast_stack_temp<- raster::stack(rast_files_load[i])
     
     covariate_name<- case_when(

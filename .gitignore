@@ -6,9 +6,9 @@
 .rds
 
 # R files that tend to be large
-.gri
-.grd
-.tiff
+.gri$
+.grd$
+.tiff$
 
 # For targets
 _targets/

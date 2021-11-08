@@ -7,7 +7,7 @@
 ## Dynamic loading functions -- each takes in a directory path and reads in files from it. 
 dfo_GSINF_load<- function(dfo_raw_dir){
   # Load raw data
-  rdata_files_load<- list.files(dfo_raw_dir, pattern = ".GSINF", full.names = TRUE)
+  rdata_files_load<- list.files(dfo_raw_dir, pattern = ".GSINF.RData$", full.names = TRUE)
   lapply(rdata_files_load, load, environment(), verbose = FALSE)
   
   # New name
@@ -17,7 +17,7 @@ dfo_GSINF_load<- function(dfo_raw_dir){
 
 dfo_GSMISSIONS_load<- function(dfo_raw_dir){
   # Load raw data
-  rdata_files_load<- list.files(dfo_raw_dir, pattern = ".GSMISSIONS", full.names = TRUE)
+  rdata_files_load<- list.files(dfo_raw_dir, pattern = ".GSMISSIONS.RData$", full.names = TRUE)
   lapply(rdata_files_load, load, environment(), verbose = FALSE)
   
   # New name
@@ -27,7 +27,7 @@ dfo_GSMISSIONS_load<- function(dfo_raw_dir){
 
 dfo_GSCAT_load<- function(dfo_raw_dir){
   # Load raw data
-  rdata_files_load<- list.files(dfo_raw_dir, pattern = ".GSCAT", full.names = TRUE)
+  rdata_files_load<- list.files(dfo_raw_dir, pattern = ".GSCAT.RData$", full.names = TRUE)
   lapply(rdata_files_load, load, environment(), verbose = FALSE)
   
   # New name

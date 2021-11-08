@@ -13,7 +13,7 @@ library(tidyverse)
 library(lubridate)
 library(sf)
 library(raster)
-library(here)
+library(here) 
 library(targets)
 library(tarchetypes)
 library(patchwork)
@@ -38,6 +38,7 @@ if(manual){
   source(here::here("R/combo_functions.R"))
   source(here::here("R/enhance_r_funcs.R"))
   source(here::here("R/vast_functions.R"))
+  source(here::here("R/covariate_functions.R"))
 }
 
 # Targets set up
@@ -52,7 +53,7 @@ fit_year_min<- 1985
 fit_year_max<- 2015
 fit_seasons<- c("SPRING", "SUMMER", "FALL")
 #fit_seasons<- c("FALL")
-pred_years <- 2100
+pred_years <- 2055
 gam_degree<- 3
 hab_formula<- ~ Season + Year_Cov + bs(Depth, degree = 3, intercept = FALSE) + bs(SST_seasonal, degree = 3, intercept = FALSE) + bs(BT_seasonal, degree = 3, intercept = FALSE) # Seasonal
 #hab_formula<- ~ bs(Depth, degree = 2, intercept = FALSE) + bs(SST_seasonal, degree = 2, intercept = FALSE) # Annnual
