@@ -2699,3 +2699,61 @@ vast_get_point_preds<- function(vast_fit, use_PredTF_only, nice_category_names, 
   return(samp_pred_out)
 }
 
+#' @title Plot VAST center of gravity
+#' 
+#' @description Blah
+#'
+#' @param vast_fit = A VAST `fit_model` object.
+#' @param nice_category_names = Species name
+#' @param out_dir = Output directory to save the dataset
+#' 
+#' @return Blah
+#'
+#' @export
+
+plot_vast_centerofgravity<- function(vast_fit, land_sf, xlim, ylim, nice_category_names, out_dir){
+  if(FALSE){
+    vast_fit = vast_fitted
+    land_sf = land_use
+    xlim = xlim_use
+    ylim = ylim_use
+    nice_category_names<- "Atlantic halibut"
+    out_dir = here::here("", "results/plots_maps")
+  }
+  
+  # Getting prediction array
+  cog_array<- vast_fit$Report[["mean_Z_ctm"]]
+ 
+  # Look over classes
+  for(i in seq_along(dim(cog_array)[1])){
+    
+    # Gather class i data
+    cog_temp<- data.frame(cog_array[i,,])
+    names(cog_temp)<- c("Lon", "Lat")
+    
+    # Add time step
+    cog_temp$Time<- as.integer(unique(vast_fit$data_frame$t_i))
+    
+    # Convert to sf
+    cog_sf<- st_as_sf(cog_temp, coords = c("Lon", "Lat"), crs = attributes(vast_fit$spatial_list$loc_i)$projCRS)
+    
+    # Transform to be in WGS84
+    cog_sf_wgs84<- st_transform(cog_sf, st_crs(land_sf)) 
+    
+    # Base plot
+    cog_plot<- ggplot() +
+      geom_sf(data = cog_sf_wgs84, aes(fill = Time), size = 2, shape = 21) +
+      scale_fill_viridis_c(name = "Year") +
+      geom_sf(data = land_sf, fill = land_color, lwd = 0.2, na.rm = TRUE) +
+      coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
+      theme(panel.background = element_rect(fill = "white"), panel.border = element_rect(fill = NA), axis.text.x=element_blank(), axis.text.y=element_blank(), axis.ticks=element_blank(), axis.title = element_blank(), plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt"))
+    
+    # Animate it
+    cog_plot + 
+      transition_time(Time) +
+      labs(title = "Year: {frame_time}") +
+      shadow_mark(alpha = 0.3, size = 0.5)
+  }
+  
+}
+
