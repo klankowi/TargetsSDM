@@ -1,12 +1,5 @@
-# _targets.R
-# Libraries
-# install.packages("devtools")
 library(devtools)
-# devtools::install_version("Matrix", version = "1.2.8")
 library(Matrix)
-# devtools::install_version("TMB", "1.7.18")
-# devtools::install_github("James-Thorson-NOAA/FishStatsUtils", force = TRUE, upgrade = FALSE)
-# devtools::install_github("James-Thorson-NOAA/VAST", ref = "main", force = TRUE, upgrade = FALSE)
 library(VAST)
 library(FishStatsUtils)
 library(tidyverse)
@@ -23,27 +16,15 @@ library(splines)
 library(parallel)
 library(doFuture)
 library(tools)
+library(tictoc)
 
 # Functions
-manual<- FALSE
-if(manual){
-  source(here::here("scratch/aja/TargetsSDM/R/dfo_functions.R"))
-  source(here::here("scratch/aja/TargetsSDM/R/nmfs_functions.R"))
-  source(here::here("scratch/aja/TargetsSDM/R/combo_functions.R"))
-  source(here::here("scratch/aja/TargetsSDM/R/enhance_r_funcs.R"))
-  source(here::here("scratch/aja/TargetsSDM/R/vast_functions.R"))
-} else {
-  source(here::here("R/dfo_functions.R"))
-  source(here::here("R/nmfs_functions.R"))
-  source(here::here("R/combo_functions.R"))
-  source(here::here("R/enhance_r_funcs.R"))
-  source(here::here("R/vast_functions.R"))
-  source(here::here("R/covariate_functions.R"))
-}
-
-# Targets set up
-options(tidyverse.quiet = TRUE)
-tar_option_set(packages = c("Matrix", "TMB", "FishStatsUtils", "VAST", "tidyverse", "lubridate", "sf", "raster", "here", "tools"))
+source(here::here("R/dfo_functions.R"))
+source(here::here("R/nmfs_functions.R"))
+source(here::here("R/combo_functions.R"))
+source(here::here("R/enhance_r_funcs.R"))
+source(here::here("R/vast_functions.R"))
+source(here::here("R/covariate_functions.R"))
 
 # Model fitting stuffs
 nmfs_species_code<- 301
@@ -52,22 +33,15 @@ depth_cut<- 400
 fit_year_min<- 1985
 fit_year_max<- 2015
 fit_seasons<- c("SPRING", "SUMMER", "FALL")
-#fit_seasons<- c("FALL")
-pred_years <- 2055
+pred_years <- 2100
 gam_degree<- 3
-hab_formula<- ~ Season + Year_Cov + bs(Depth, degree = 3, intercept = FALSE) + bs(SST_seasonal, degree = 3, intercept = FALSE) + bs(BT_seasonal, degree = 3, intercept = FALSE) # Seasonal
-#hab_formula<- ~ bs(Depth, degree = 2, intercept = FALSE) + bs(SST_seasonal, degree = 2, intercept = FALSE) # Annnual
+hab_formula<- ~ Season + Year_Cov + bs(Depth, degree = 3, intercept = FALSE) + bs(SST_seasonal, degree = 3, intercept = FALSE) + bs(BT_seasonal, degree = 3, intercept = FALSE) + bs(SS_seasonal, degree = 3, intercept = FALSE) + bs(BS_seasonal, degree = 3, intercept = FALSE) # Seasonal
 hab_env_coeffs_n<- length(attributes(terms.formula(hab_formula))$term.labels)-2 # Seasonal
-#hab_env_coeffs_n<- length(attributes(terms.formula(hab_formula))$term.labels)-1 # Annual
-# hab_env_coeffs_n<- length(attributes(terms.formula(hab_formula))$term.labels) # Annual habitat covs only
 field_config<- c("Omega1" = 1, "Epsilon1" = 1, "Omega2" = 1, "Epsilon2" = 1)
 rho_config<- c("Beta1" = 2, "Beta2" = 2, "Epsilon1" = 2, "Epsilon2" = 2)
 
 catch_formula<- ~ factor(Survey)
-#catch_formula<- ~0
 strata_use<- data.frame("STRATA" = c("DFO", "GoM", "NMFS_and_DFO", "NMFS", "SNE_and_MAB"))
-#strata_use<- data.frame("STRATA" = c("NMFS", "DFO"))
-#strata_use<- data.frame("STRATA" = c("NMFS"))
 
 
 # Dynamic files
@@ -341,16 +315,16 @@ list(
     command = vast_make_spatial_lists(extrap_grid = vast_extrap_grid, vast_settings = vast_settings, tidy_mod_data = tidy_mod_data, out_dir = paste0(here::here(""), "/"))
   ),
 
-  # Reduce the prediction dataframe from regular grid to have size based on number of knots
-  tar_target(
-    name = vast_predict_df_reduced,
-    command = reduce_vast_predict_df(vast_predict_df = vast_predict_df, vast_spatial_lists = vast_spatial_lists, out_dir = here::here("data/predict"))
-  ),
+  # # Reduce the prediction dataframe from regular grid to have size based on number of knots
+  # tar_target(
+  #   name = vast_predict_df_reduced,
+  #   command = reduce_vast_predict_df(vast_predict_df = vast_predict_df, vast_spatial_lists = vast_spatial_lists, out_dir = here::here("data/predict"))
+  # ),
 
   # Make VAST seasonal data
   tar_target(
     name = vast_seasonal_data,
-    command = make_vast_seasonal_data(tidy_mod_data = tidy_mod_data, fit_seasons = fit_seasons, nmfs_species_code = nmfs_species_code, fit_year_min = fit_year_min, fit_year_max = fit_year_max, pred_years = pred_years, pred_df = vast_predict_df_reduced, out_dir = here::here("data/combined"))
+    command = make_vast_seasonal_data(tidy_mod_data = tidy_mod_data, fit_seasons = fit_seasons, nmfs_species_code = nmfs_species_code, fit_year_min = fit_year_min, fit_year_max = fit_year_max, pred_years = pred_years, pred_df = vast_predict_df, out_dir = here::here("data/combined"))
   ),
 
   # Make VAST sample data object
@@ -434,7 +408,7 @@ list(
   # Get covariate effects --
   tar_target(
     name = vast_covariate_effects,
-    command = get_vast_covariate_effects(vast_fit = vast_fit, params_plot = c("Depth", "SST_seasonal", "BT_seasonal"), params_plot_levels = 100, effects_pad_values = c(1), nice_category_names = nice_category_names, out_dir = here::here("results/tables/"))
+    command = get_vast_covariate_effects(vast_fit = vast_fit, params_plot = c("Depth", "SST_seasonal", "BT_seasonal", "SS_seasonal", "BS_seasonal"), params_plot_levels = 100, effects_pad_values = c(1), nice_category_names = nice_category_names, out_dir = here::here("results/tables/"))
   ),
   # 
   # tar_target(
