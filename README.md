@@ -8,7 +8,9 @@ The (Vignette)[[https://github.com/aallyn/TargetsSDM/blob/main/Vignette.Rmd] is 
 Although we hope this provides useful "how to" information to potential users, the Vignette does not dive deeply into the statistical nitty-gritty that is going on behind the scenes. For that level of information, we'd encourage folks to read the many papers linked at the GitHub VAST page. In addition, we also provide our own (VAST for Beginners)[] document to accompany these other materials. This document comes with the disclaimer that none of us are statisticians. Although, we have spent considerable time trying to better understand the VAST modeling approach and more general spatio-temporal modeling concepts, we are sure that there are things we have not understood entirely. If you do come across something that stands out, please let us know as we are always trying to learn!
 
 ## The Targets workflow
-![Workflow](SDMWorkflow.drawio.svg “Targets Workflow”)
+![Targets workflow](./SDMWorkflow.drawio.svg)
+<img src="././SDMWorkflow.drawio.svg">
+
 ### Background
 The Targets workflow of the repository more product focused than the Vignette. While we have tried to write functions and implement a workflow that is relatively flexibile, it is really tailored to a project that is designed to produce marine species distribution and abundance projections within the northwest Altantic ocean. To reach this goal, this Targets workflow
 
