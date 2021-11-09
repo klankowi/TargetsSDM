@@ -9,7 +9,6 @@ Although we hope this provides useful "how to" information to potential users, t
 
 ## The Targets workflow
 ![Targets workflow](./SDMWorkflow.drawio.svg)
-<img src="././SDMWorkflow.drawio.svg">
 
 ### Background
 The Targets workflow of the repository more product focused than the Vignette. While we have tried to write functions and implement a workflow that is relatively flexibile, it is really tailored to a project that is designed to produce marine species distribution and abundance projections within the northwest Altantic ocean. To reach this goal, this Targets workflow
