@@ -23,8 +23,6 @@ library(raster)
 library(patchwork)
 library(akima)
 library(lubridate)
-library(profvis)
-library(googledrive)
 library(PresenceAbsence)
 library(MLmetrics)
 library(gmRi)
@@ -242,7 +240,7 @@ Similarly, we have a `vast_make_settings` function that uses `FishStatsUtils::ma
 ```{r, eval = eval_use}
 # First, the field and rho configuration settings. Field config sets up the spatial/spatio-temporal components and how many factors should be estimated. Rho config sets up autoregressive structure on intercepts and spatio-temporal components.
 field_config<- c("Omega1" = 1, "Epsilon1" = 1, "Omega2" = 1, "Epsilon2" = 1)
-rho_config<- c("Beta1" = 0, "Beta2" = 0, "Epsilon1" = 0, "Epsilon2" = 0)
+rho_config<- c("Beta1" = 2, "Beta2" = 2, "Epsilon1" = 0, "Epsilon2" = 0)
 
 # Now, call the settings function -- knot_method = "samples" throws errors!
 vast_settings<- vast_make_settings(extrap_grid = vast_extrap_grid_nona, n_knots = 400, FieldConfig = field_config, RhoConfig = rho_config, OverdispersionConfig = c(0, 0), bias.correct = TRUE, knot_method = "grid", inla_method = "Barrier", Options = c("Calculate_Range" = TRUE), strata.limits = strata_use)
@@ -380,9 +378,17 @@ vast_density_plot
 knitr::include_graphics("results/plots_maps/Atlantic halibut_D_gct.png")
 ```
 
-Finally, plotting changes in the center of gravity. 
+Another thing we might be interested in summarizing the distribution and looking at changes in the center of gravity, as well as center of longitude and latitude (with uncertainty). 
 ```{r, eval = eval_use}
+vast_cog_plot<- vast_plot_cog(vast_fit = vast_fitted, land_sf = land_use, xlim = xlim_use, ylim = ylim_use, nice_category_names = "Atlantic halibut", land_color = "#d9d9d9", out_dir = here::here("", "results/plots_maps"))
+vast_cog_plot
 ```
+```{r, eval = !eval_use, echo = FALSE, fig.cap = "Predicted density"}
+knitr::include_graphics("results/plots_maps/COG_Atlantic halibut")
+```
+
+## Stage 8: Use the model to make predictions
+Armed with a fitted model, we might be interested in using the model to make predictions. This becomes more interesting as we add in habitat and catchability covariates and then have new covariate information to use -- for example projected sea surface temperatures from a global climate model. So, we save the prediction discussion until then. 
 
 # Adding complexity - habitat and catchability covariates
 Working through the basic workflow and fitting the "simple" VAST model is no small feat, so make sure to take a bit of time to celebrate the victory! After a few pats on the back, we are sure that many are wondering about how we can add to this "simple" model to increase its ecological realism and simultaneously its complexity. There are a variety of different avenues for doing this. In this section, we are going to stay in the single species context and think about adding complexity through the addition of habitat and catchability covariates. 
@@ -391,14 +397,28 @@ Working through the basic workflow and fitting the "simple" VAST model is no sma
 
 ## Habitat covariates
 ### Model building and fitting
-Let's start by adding in some habitat covariates. Hopefully, this process looks somewhat familiar to those have have fit an "environment-only" species distribution model where we are including some static/dynamic values for variables that we think influence a species occurrence pattern. With many modeling approaches, all of this information can be in one dataframe -- similar to our tidy model dataframe. With VAST, we actually want to separate out a specific "covariate data" dataframe. 
+Let's start by adding in some habitat covariates and an autoregressive structure to the model intercepts to facilitate using the model to make predictions or forecasts. **As far as I know, without adjusting this structure we will not be able to make any predictions beyond the time horizon used in fitting the model.** Hopefully, this process looks somewhat familiar to those have have fit an "environment-only" species distribution model where we are including some static/dynamic values for variables that we think influence a species occurrence pattern. With many modeling approaches, all of this information can be in one dataframe -- similar to our tidy model dataframe. With VAST, we actually want to separate out a specific "covariate data" dataframe. 
 
 ```{r, eval = eval_use}
 # We will need a covariate data frame
 vast_covariate_data<- data.frame("Year" = tidy_mod_data_run$EST_YEAR, "Depth" = tidy_mod_data_run$Depth, "SST_seasonal" = tidy_mod_data_run$SST_seasonal, "BT_seasonal" = tidy_mod_data_run$BT_seasonal, "Lat" = tidy_mod_data_run$DECDEG_BEGLAT, "Lon" = tidy_mod_data_run$DECDEG_BEGLON)
 ```
 
-After we've gotten our "covariate data" dataframe created, then we can start to think about how we think these covariate values are related to our response variable (e.g., species presence/absence or positive biomass). We do this by creating a `hab_formula` habitat formula. There is a lot of flexibility here. For example. we could easily say that these relationships are linear, or quadratic. Rather than prescribe something, we are going to assume that these relationships are non-linear, with some limitations to how "wiggly" they can be. Conceptually, this approach is identical to using a generalized additive model with smooth terms for each of the covariates. The "wiggliness" is determined by the degree, which we set to 3. 
+We will also need to modify this "covariate" dataframe and our "sample" dataframe slightly. This modification involves providing a dummy observation for any time step we might be interested in predicting (or forecasting). Importantly, we change the `Pred_TF` value for this observation from 0 to 1 to signal TMB to only use the observation in the predicted component and not in estimating the likelihood. This becomes more important later on as we bring in climate model projection data. For now, though, we are just going to imagine we are interested in applying the model to forecast to 2020. 
+```{r, eval = eval_use}
+samps<- sample(1:nrow(vast_covariate_data), size = 500, replace = FALSE)
+dummy_dat_cov<- vast_covariate_data[samps,]
+dummy_dat_cov$Year<- 2020
+vast_covariate_data_aug<- rbind(vast_covariate_data, dummy_dat_cov)
+
+dummy_dat<- vast_sample_data[samps,]
+dummy_dat$Year<- 2020
+dummy_dat$Pred_TF<- 1
+
+vast_sample_data_aug<- rbind(vast_sample_data, dummy_dat)
+```
+
+After we've gotten our "covariate data" and "sample data" dataframes created, then we can start to think about how we think these covariate values are related to our response variable (e.g., species presence/absence or positive biomass). We do this by creating a `hab_formula` habitat formula. There is a lot of flexibility here. For example. we could easily say that these relationships are linear, or quadratic. Rather than prescribe something, we are going to assume that these relationships are non-linear, with some limitations to how "wiggly" they can be. Conceptually, this approach is identical to using a generalized additive model with smooth terms for each of the covariates. The "wiggliness" is determined by the degree, which we set to 3. 
 ```{r, eval = eval_use}
 # Model formula
 gam_degree<- 3
@@ -413,21 +433,33 @@ In addition to a flexibility in the model formula, VAST also provides a generous
 vast_coveff_habcovs<- vast_make_coveff(X1_coveff_vec = rep(rep(1, gam_degree), hab_env_coeffs_n), X2_coveff_vec = rep(rep(1, gam_degree), hab_env_coeffs_n), Q1_coveff_vec = NULL, Q2_coveff_vec = NULL)
 ```
 
+The last step is to modify our model settings slightly by adding an autoregressive structure to the model intercepts. This is done by changing the `rho_config` structure and is necessary if we want to make predictions beyond the time horizon of our data.
+
+```{r, eval = eval_use}
+# Adjust model settings
+# First, the field and rho configuration settings. Field config sets up the spatial/spatio-temporal components and how many factors should be estimated. Rho config sets up autoregressive structure on intercepts and spatio-temporal components.
+field_config<- c("Omega1" = 1, "Epsilon1" = 1, "Omega2" = 1, "Epsilon2" = 1)
+rho_config<- c("Beta1" = 2, "Beta2" = 2, "Epsilon1" = 0, "Epsilon2" = 0)
+
+# Now, call the settings function -- knot_method = "samples" throws errors!
+vast_settings_fore<- vast_make_settings(extrap_grid = vast_extrap_grid_nona, n_knots = 400, FieldConfig = field_config, RhoConfig = rho_config, OverdispersionConfig = c(0, 0), bias.correct = TRUE, knot_method = "grid", inla_method = "Barrier", Options = c("Calculate_Range" = TRUE), strata.limits = strata_use)
+```
+
 We've now got everything we need to build our new VAST model. To recap, and double check the output we get to the console after building the model, we expect that this new model will have:
--  An intercept term for each time step (e.g, year), estimated as fixed effects,
+-  An intercept term for each time step (e.g, year), estimated as random effects following a random walk (40 now instead of 39 with the base model)
 -  A persistent spatial random effect (omega),
 -  An ephemeral spatio-temporal random effect for each time step (epsilon),
 -  A smooth spline function, with associated parameters, for each habitat covariate estimated as fixed effects.
 
 ```{r, eval = eval_use}
 # Build
-vast0_hab_covs<- vast_build_sdm(settings = vast_settings, extrap_grid = vast_extrap_grid_nona, sample_data = vast_sample_data, covariate_data = vast_covariate_data, X1_formula = hab_formula, X2_formula = hab_formula, Q1_formula = NULL, Q2_formula = NULL, Xconfig_list = vast_coveff_habcovs, X_contrasts = NULL, index_shapes = index_area_shapes, spatial_info_dir = here::here(""))
+vast0_hab_covs<- vast_build_sdm(settings = vast_settings_fore, extrap_grid = vast_extrap_grid_nona, sample_data = vast_sample_data_aug, covariate_data = vast_covariate_data_aug, X1_formula = hab_formula, X2_formula = hab_formula, Q1_formula = NULL, Q2_formula = NULL, Xconfig_list = vast_coveff_habcovs, X_contrasts = NULL, index_shapes = index_area_shapes, spatial_info_dir = here::here(""))
 ```
 
 After confirming everything looks right, we can fit the new model. 
 ```{r, eval = eval_use}
-# Fit
-vast_fitted_hab_covs<- vast_fit_sdm(vast_build_adjust = vast0_hab_covs, nmfs_species_code = 1011, index_shapes = index_area_shapes, spatial_info_dir = here::here(""), out_dir = here::here("", "results/mod_fits"))
+# Sample from joint distribution
+    newpar = rmvnorm_prec( mu=Obj$env$last.par.best, prec=fit$parameter_estimates$SD$jointPrecision, n.sims=1, random_seed=random_seed )[,1]
 ```
 
 ### Model inference
@@ -455,22 +487,7 @@ taylor_diag_comp
 knitr::include_graphics("results/plots_maps/Atlantic halibut_comp_TaylorDiagram.jpg")
 ```
 
-
-As with our basic model, we can do a whole bunch of things after we've fit and evaluted/validated the model. For example, we could look at the estimated biomass and see how that compares to the basic model.
-```{r, eval = eval_use}
-biomass_indices_habcovs<- get_vast_index_timeseries(vast_fit = vast_fitted_hab_covs, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = here::here("", "results/tables"))
-
-unique(biomass_indices_habcovs$Index_Region)
-biomass_indices_habcovs$Index_Region<-  recode(biomass_indices_habcovs$Index_Region, "DFO" = "DFO_HabCovs", "NMFS" = "NMFS_HabCovs")
-
-biomass_indices_both<- bind_rows(biomass_indices, biomass_indices_habcovs)
-
-plot_vast_index_timeseries(index_res_df = biomass_indices_both, index_scale = "raw", nice_category_names = "Atlantic halibut", nice_xlab = "Year", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = here::here("", "results/plots_maps"))
-
-# Kind of ugly to look at, but could easily enough take and plot a difference or do whatever else you want.
-```
-
-We could do similar comparisons with other shared parameters and derived products -- for example we could look at differences in predicted density. Beyond that, the other thing that might of interest now is visualizing the fitted smooth functions defining the relationship between species occurrence and the environmental variables. To do that, we can run our `get_vast_covariate_effects` and `plot_vast_covariate_effects` functions. 
+Another thing that might of interest now is visualizing the fitted smooth functions defining the relationship between species occurrence and the environmental variables. To do that, we can run our `get_vast_covariate_effects` and `plot_vast_covariate_effects` functions. 
 ```{r, eval = eval_use}
 vast_habcovs_effs<- get_vast_covariate_effects(vast_fit = vast_fitted_hab_covs, params_plot = c("Depth", "SST_seasonal", "BT_seasonal"), params_plot_levels = 100, effects_pad_values = c(), nice_category_names = "Atlantic halibut", out_dir = here::here("", "results/tables"))
 
@@ -481,5 +498,40 @@ vast_habcovs_plot
 ```{r, eval = !eval_use, echo = FALSE, fig.cap = "Species-habitat covariate relationships", out.width = "50%"}
 knitr::include_graphics("results/plots_maps/Atlantic halibut_covariate_effects.jpg")
 ```
+
+As with our basic model, we can do a whole bunch of things after we've fit and evaluated/validated the model. For example, we could look at the estimated biomass and see how that compares to the basic model.
+```{r, eval = eval_use}
+biomass_indices_habcovs<- get_vast_index_timeseries(vast_fit = vast_fitted_hab_covs, nice_category_names = "Atlantic halibut", index_scale = c("raw"), out_dir = here::here("", "results/tables"))
+
+unique(biomass_indices_habcovs$Index_Region)
+biomass_indices_habcovs$Index_Region<-  recode(biomass_indices_habcovs$Index_Region, "DFO" = "DFO_HabCovs", "NMFS" = "NMFS_HabCovs")
+
+biomass_indices_both<- bind_rows(biomass_indices, biomass_indices_habcovs)
+
+plot_vast_index_timeseries(index_res_df = biomass_indices_both, year_stop = 2019, index_scale = "raw", nice_category_names = "Atlantic halibut", nice_xlab = "Year", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = here::here("", "results/plots_maps"))
+
+# Kind of ugly to look at, but could easily enough take and plot a difference or do whatever else you want.
+```
+
+Finally, we might be interested in using our model to make predictions. **Come back to this -- ** In this case, one of the easiest things to think about would be making a forecast using expected future sea surface and bottom temperature values. These values get passed to a `predict` style function as a `new_covariate_data` dataframe. Although we haven't necessarily gone through and actually gathered these "future" values from a regional ocean model or a global climate model, we can easily create something with a similar structure just using the data we already have and then pretending like the observations represent those from a physical ocean forecast model.
+```{r, eval = eval_use}
+# Grab a sample of data from the last three years of observations to use as "fake" temperature forecasts
+fitted_dat<- vast_fitted_hab_covs$covariate_data
+pred_df<- fitted_dat %>%
+  filter(., Year >= 2015)
+pred_df<- pred_df[sample(1:nrow(pred_df), size = 250, replace = FALSE), ]
+
+# Manually fudge the year to pretend like it comes from "the future"
+pred_df$Year<- 2020
+
+summary(pred_df)
+```
+
+Now that we have a "prediction" covariate dataframe that we know matches the original covariate dataframe exactly, we can try to use the beta/testing `predict` function.
+```{r}
+vast_forecast_density<- predict_vast(vast_fitted_sdm = vast_fitted_hab_covs, nmfs_species_code = 1011, predict_variable = "D_i", predict_category = 0, predict_vessel = 0, predict_covariates_df_all = pred_df, cov_names = c("Depth", "SST_seasonal", "BT_seasonal"), time_col = "Year", out_dir = here::here("", "results/prediction_df"))
+```
+
+This is certainly helpful, though leaves a bit to be desired as it would be great if we could make a prediction for different derived quantities -- like the startified biomass indices. 
 
 `r insert_gmri_footer(footer_file = "aallyn_gmri_footer.html")`
