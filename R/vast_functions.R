@@ -951,49 +951,58 @@ vast_fit_sdm <- function(vast_build_adjust, nmfs_species_code, index_shapes, spa
 #'
 #' @export
 
-predict_vast<- function(vast_fitted_sdm, nmfs_species_code, predict_variable = "D_i", predict_category = 0, predict_vessel = 0, predict_covariates_df_all, out_dir){
+predict_vast<- function(vast_fitted_sdm, nmfs_species_code, predict_variable = "D_i", predict_category = 0, predict_vessel = 0, predict_covariates_df_all, cov_names, time_col, out_dir){
 
   # For debugging
   if(FALSE){
+    # Targets
     tar_load(vast_fit)
     vast_fitted_sdm = vast_fit
-    nmfs_species_code = nmfs_species_code
-    predict_variable = "D_i"
+    nmfs_species_code = 101
+    predict_variable = "Index_gctl"
     predict_category = 0
     predict_vessel = 0
     tar_load(vast_predict_df)
     predict_covariates_df_all = vast_predict_df
+    
+    # Basic example...
+    vast_fitted_sdm = readRDS(here::here("", "results/mod_fits/1011_fitted_vast.rds"))
+    nmfs_species_code = 101
+    predict_variable = "Index_gctl"
+    predict_category = 0
+    predict_vessel = 0
+    predict_covariates_df_all<- pred_df
+    time_col = "Year"
+    cov_names = c("Depth", "SST_seasonal", "BT_seasonal")
   }
   
   #### Not the biggest fan of this, but for now, building in a work around to resolve some of the memory issues that we were running into by supplying a 0.25 degree grid and trying to predict/project for each season-year from 1980-2100. To overcome this issue, going to try to just make the projections to knots and do the smoothing later.
   # First, need to get the knot locations
   knot_locs<- data.frame(vast_fitted_sdm$spatial_list$latlon_g) %>%
-    st_as_sf(., coords = c("Lat", "Lon"), remove = FALSE) %>%
+    st_as_sf(., coords = c("Lon", "Lat"), remove = FALSE) %>%
     mutate(., "Pt_Id" = 1:nrow(.))
   
   # Nearest knot to each point?
   pred_sf<- predict_covariates_df_all %>%
-    st_as_sf(., coords = c("DECDEG_BEGLAT", "DECDEG_BEGLON"), remove = FALSE)
+    st_as_sf(., coords = c("Lon", "Lat"), remove = FALSE)
   
   pred_sf<- pred_sf %>%
     mutate(., "Nearest_Knot" = st_nearest_feature(., knot_locs))
   
   # Average the points...
-  pred_sf_knots<- pred_sf %>%
-    group_by(., ID, DATE, EST_YEAR, SEASON, SURVEY, SVVESSEL, NMFS_SVSPP, DFO_SPEC, PRESENCE, BIOMASS, ABUNDANCE, PredTF, VAST_YEAR_COV, VAST_SEASON, VAST_YEAR_SEASON, Summarized, Ensemble_Stat, Nearest_Knot) %>%
-    summarize(., "BS_seasonal" = mean(BS_seasonal, na.rm = TRUE),
-              "BT_seasonal" = mean(BT_seasonal, na.rm = TRUE),
-              "SS_seasonal" = mean(SS_seasonal, na.rm = TRUE),
-              "SST_seasonal" = mean(SST_seasonal, na.rm = TRUE),
-              "Depth" = mean(Depth, na.rm = TRUE)) %>%
-    st_drop_geometry() %>%
+  pred_df_knots<- pred_sf %>%
+    st_drop_geometry()
+  group_by_vec<- c({{time_col}}, "Nearest_Knot")
+  pred_df_knots<- pred_df_knots %>%
+    group_by_at(.vars = group_by_vec) %>%
+    summarize_at(all_of(cov_names), mean, na.rm = TRUE) %>%
     left_join(., st_drop_geometry(knot_locs), by = c("Nearest_Knot" = "Pt_Id")) %>%
     ungroup()
   
   # Collecting necessary bits from the prediction covariates -- lat, lon, time
-  pred_lats<- pred_sf_knots$Lat
-  pred_lons<- pred_sf_knots$Lon
-  pred_times<- as.numeric(pred_sf_knots$VAST_YEAR_SEASON)-1
+  pred_lats<- pred_df_knots$Lat
+  pred_lons<- pred_df_knots$Lon
+  pred_times<- as.numeric(unlist(pred_df_knots[{{time_col}}]))
   
   # Catch stuff...
   pred_sampled_areas<- rep(1, length(pred_lats))
@@ -1001,32 +1010,28 @@ predict_vast<- function(vast_fitted_sdm, nmfs_species_code, predict_variable = "
   pred_vessel<- rep(predict_vessel, length(pred_lats))
   
   # Renaming predict_covariates_df_all to match vast_fit_covariate_data
-  pred_cov_dat_use<- data.frame(
-    "Year" = pred_times,
-    "Year_Cov" = pred_sf_knots$VAST_YEAR_COV,
-    "Season" = pred_sf_knots$VAST_SEASON,
-    "Depth" = pred_sf_knots$Depth,
-    "SST_seasonal" = pred_sf_knots$SST_seasonal,
-    "BT_seasonal" = pred_sf_knots$BT_seasonal,
-    "Survey" = pred_vessel,
-    "Lat" = pred_lats,
-    "Lon" = pred_lons
-  )
+  pred_cov_dat_name_order<- which(names(pred_df_knots) %in% names(vast_fitted_sdm$covariate_data))
+  pred_cov_dat_use<- pred_df_knots[,pred_cov_dat_name_order]
+  
+  # Catchability data?
+  if(!is.null(vast_fitted_sdm$catchability_data)){
+    pred_catch_dat_use<- pred_cov_dat_use %>%
+      dplyr::select(., c(Year, Year_Cov, Season, Lat, Lon, Survey)
+      )
+    pred_catch_dat_use$Survey<- rep("NMFS", nrow(pred_catch_dat_use))
+    pred_catch_dat_use$Survey<- factor(pred_catch_dat_use$Survey, levels = c("NMFS", "DFO", "DUMMY"))
+  } else {
+    pred_catch_dat_use<- NULL
+  }
  
-  pred_catch_dat_use<- pred_cov_dat_use %>%
-    dplyr::select(., c(Year, Year_Cov, Season, Lat, Lon, Survey)
-  )
-  pred_catch_dat_use$Survey<- rep("NMFS", nrow(pred_catch_dat_use))
-  pred_catch_dat_use$Survey<- factor(pred_catch_dat_use$Survey, levels = c("NMFS", "DFO", "DUMMY"))
-
   # Make the predictions
   preds_out<- predict.fit_model_aja(x = vast_fitted_sdm, what = predict_variable, Lat_i = pred_lats, Lon_i = pred_lons, t_i = pred_times, a_i = pred_sampled_areas, c_iz = pred_category, NULL, new_covariate_data = pred_cov_dat_use, new_catchability_data = pred_catch_dat_use, do_checks = FALSE)
   
   # Get everything as a dataframe to make plotting easier...
-  pred_df_out<- data.frame("Lat" = pred_lats, "Lon" = pred_lons, "Time" = pred_sf_knots$VAST_YEAR_SEASON, "Pred" = preds_out)
+  pred_df_out<- data.frame("Lat" = pred_lats, "Lon" = pred_lons, "Time" = pred_cov_dat_use[,{{time_col}}], "Pred" = preds_out)
   
   # Save and return it
-  saveRDS(pred_df_out, file = paste(out_dir, "/pred_Di_", nmfs_species_code, "_", unique(pred_sf_knots$Summarized), "_", unique(pred_sf_knots$Ensemble_Stat), ".rds", sep = "" ))
+  saveRDS(pred_df_out, file = paste(out_dir, "/pred_", predict_variable, "_", nmfs_species_code, ".rds", sep = "" ))
   return(pred_df_out)
 }
 
@@ -1419,14 +1424,14 @@ predict.fit_model_aja<- function(x, what = "D_i", Lat_i, Lon_i, t_i, a_i, c_iz =
     #new_catchability_data = pred_catch_dat_use
     do_checks = FALSE
     
-    x = vast_fitted_sdm
-    what = predict_variable
-    Lat_i = pred_lats
-    Lon_i = pred_lons
-    t_i = pred_times
-    a_i = pred_sampled_areas
-    c_iz = pred_category
-    v_i = pred_vessel
+    x = vast_fit
+    what = "Index_gctl"
+    Lat_i = predict_covariates_df_all[,"DECDEG_BEGLAT"]
+    Lon_i = predict_covariates_df_all[,"DECDEG_BEGLON"]
+    t_i = predict_covariates_df_all[,"t_i"]
+    a_i = predict_covariates_df_all[,"a_i"]
+    c_iz = predict_covariates_df_all[,"c_iz"]
+    v_i = predict_covariates_df_all[,"v_i"]
     new_covariate_data = pred_cov_dat_use
     new_catchability_data = pred_catch_dat_use
     do_checks = FALSE
@@ -1444,6 +1449,19 @@ predict.fit_model_aja<- function(x, what = "D_i", Lat_i, Lon_i, t_i, a_i, c_iz =
     # new_covariate_data = object$covariate_data
     # new_catchability_data = object$catchability_data
     # do_checks = FALSE
+    
+    x = vast_fitted_sdm
+    what = predict_variable
+    Lat_i = pred_lats
+    Lon_i = pred_lons
+    t_i = pred_times
+    a_i = pred_sampled_areas
+    c_iz = pred_category
+    v_i = rep(0,length(t_i)) 
+    new_covariate_data = pred_cov_dat_use
+    new_catchability_data = pred_catch_dat_use
+    do_checks = FALSE
+    working_dir = paste0(getwd(), "/")
   }
   
   message("`predict.fit_model(.)` is in beta-testing, and please explore results carefully prior to using")
@@ -1485,7 +1503,7 @@ predict.fit_model_aja<- function(x, what = "D_i", Lat_i, Lon_i, t_i, a_i, c_iz =
   
   # Process inputs
   PredTF_i = c( x$data_list$PredTF_i, rep(1,length(t_i)) )
-  b_i = c( x$data_frame[,"b_i"], rep(1,length(t_i)) )
+  b_i = c( x$data_frame[,"b_i"], sample(c(0, 1), size = length(t_i), replace = TRUE))
   c_iz = rbind( matrix(x$data_frame[,grep("c_iz",names(x$data_frame))]), matrix(c_iz) )
   Lat_i = c( x$data_frame[,"Lat_i"], Lat_i )
   Lon_i = c( x$data_frame[,"Lon_i"], Lon_i )
@@ -1949,8 +1967,8 @@ get_vast_index_timeseries<- function(vast_fit, nice_category_names, index_scale 
     
   } else {
     # Just basic years...
-    time_labels_use<- paste(rep(seq(from = min(vast_fit$year_labels), to = max(vast_fit$year_labels), each = 1)))
-    index_res_out$Date<- factor(rep(time_labels_use, length(index_regions)), levels = time_labels_use)
+    time_labels_use<- seq(from = min(vast_fit$year_labels), to = max(vast_fit$year_labels))
+    index_res_out$Date<- factor(rep(time_labels_use, each = length(index_regions)), levels = time_labels_use)
   }
   
   
@@ -1959,7 +1977,7 @@ get_vast_index_timeseries<- function(vast_fit, nice_category_names, index_scale 
   return(index_res_out)
 }
 
-plot_vast_index_timeseries<- function(index_res_df, index_scale, nice_category_names, nice_xlab, nice_ylab, paneling = c("Category", "Index_Region", "None"), color_pal = c('#66c2a5','#fc8d62','#8da0cb'), out_dir){
+plot_vast_index_timeseries<- function(index_res_df, year_stop = NULL, index_scale, nice_category_names, nice_xlab, nice_ylab, paneling = c("category", "index_region", "none"), color_pal = c('#66c2a5','#fc8d62','#8da0cb'), out_dir){
   
   if(FALSE){
     tar_load(biomass_indices)
@@ -1986,16 +2004,25 @@ plot_vast_index_timeseries<- function(index_res_df, index_scale, nice_category_n
       mutate(., Index_Region = factor(Index_Region, levels = unique(Index_Region), labels = unique(Index_Region)),
              Year = as.numeric(gsub("([0-9]+).*$", "\\1", Date)))
     
+    # Filter based on years to plot
+    if(!is.null(year_stop)){
+      index_res_df<- index_res_df %>%
+        filter(., Year < year_stop)
+    }
+
     # Date info
-    index_res_df$Date<- as.Date(paste(index_res_df$Year, ifelse(grepl("SPRING", index_res_df$Date), "-04-15",
-                                                        ifelse(grepl("SUMMER", index_res_df$Date), "-07-15", "-10-15")), sep = ""))
-    
+    if(any(str_detect(index_res_df$Date, "^[:alpha:]+$"))){
+      index_res_df$Date<- as.Date(paste(index_res_df$Year, ifelse(grepl("SPRING", index_res_df$Date), "-04-15",
+                                                                  ifelse(grepl("SUMMER", index_res_df$Date), "-07-15", "-10-15")), sep = ""))
+    } else {
+      index_res_df$Date<- as.Date(paste(index_res_df$Year, "-06-15", sep = ""))
+    }
     
     plot_out<- ggplot() +
       geom_errorbar(data = index_res_df, aes(x = Date, ymin = (Index_Estimate - Index_SD), ymax = (Index_Estimate + Index_SD), color = Index_Region, group = Index_Region)) + 
       geom_point(data = index_res_df, aes(x = Date, y = Index_Estimate, color = Index_Region)) +
       scale_color_manual(values = colors_use) +
-      scale_x_date(date_breaks = "5 year", date_labels =  "%Y", limits = c(min(index_res_df$Date), max(index_res_df$Date))) +
+      scale_x_date(date_breaks = "5 year", date_labels =  "%Y") +
       xlab({{nice_xlab}}) +
       ylab({{nice_ylab}}) +
       ggtitle({{nice_category_names}}) + 
@@ -2007,7 +2034,6 @@ plot_vast_index_timeseries<- function(index_res_df, index_scale, nice_category_n
   ggsave(plot_out, file = paste(out_dir, "/Biomass_Index_", index_scale, "_", nice_category_names, ".jpg", sep = ""))
   return(plot_out)
 }
-
 
 ######
 ## Plot parameter effects...
@@ -2221,7 +2247,6 @@ plot_vast_covariate_effects<- function(vast_covariate_effects, vast_fit, nice_ca
   ggsave(plot_out2, file = paste(out_dir, "/", nice_category_names, "_covariate_effects.jpg", sep = ""))
   return(plot_out2)
 }
-
 
 ######
 ## Plot samples, knots and mesh
@@ -2663,6 +2688,7 @@ vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mas
 #'
 #' @param vast_fit = A VAST `fit_model` object.
 #' @param use_PredTF_only = Logical TRUE/FALSE. If TRUE, then only the locations specified as PredTF == 1 will be extracted. Otherwise, all points will be included.
+#' @param nice_category_names 
 #' @param out_dir = Output directory to save the dataset
 #' 
 #' @return A dataframe with lat, lon, observations and model predictions
@@ -2708,6 +2734,9 @@ vast_get_point_preds<- function(vast_fit, use_PredTF_only, nice_category_names, 
 #' @description Blah
 #'
 #' @param vast_fit = A VAST `fit_model` object.
+#' @param land_sf = Land sf object
+#' @param xlim = A two element vector with the min and max longitudes 
+#' @param ylim = A two element vector with the min and max latitudes 
 #' @param nice_category_names = Species name
 #' @param out_dir = Output directory to save the dataset
 #' 
@@ -2715,7 +2744,7 @@ vast_get_point_preds<- function(vast_fit, use_PredTF_only, nice_category_names, 
 #'
 #' @export
 
-plot_vast_centerofgravity<- function(vast_fit, land_sf, xlim, ylim, nice_category_names, out_dir){
+vast_plot_cog<- function(vast_fit, land_sf, xlim, ylim, nice_category_names, land_color = "#d9d9d9", out_dir){
   if(FALSE){
     vast_fit = vast_fitted
     land_sf = land_use
@@ -2725,39 +2754,131 @@ plot_vast_centerofgravity<- function(vast_fit, land_sf, xlim, ylim, nice_categor
     out_dir = here::here("", "results/plots_maps")
   }
   
-  # Getting prediction array
-  cog_array<- vast_fit$Report[["mean_Z_ctm"]]
- 
-  # Look over classes
-  for(i in seq_along(dim(cog_array)[1])){
-    
-    # Gather class i data
-    cog_temp<- data.frame(cog_array[i,,])
-    names(cog_temp)<- c("Lon", "Lat")
-    
-    # Add time step
-    cog_temp$Time<- as.integer(unique(vast_fit$data_frame$t_i))
-    
-    # Convert to sf
-    cog_sf<- st_as_sf(cog_temp, coords = c("Lon", "Lat"), crs = attributes(vast_fit$spatial_list$loc_i)$projCRS)
-    
-    # Transform to be in WGS84
-    cog_sf_wgs84<- st_transform(cog_sf, st_crs(land_sf)) 
-    
-    # Base plot
-    cog_plot<- ggplot() +
-      geom_sf(data = cog_sf_wgs84, aes(fill = Time), size = 2, shape = 21) +
-      scale_fill_viridis_c(name = "Year") +
-      geom_sf(data = land_sf, fill = land_color, lwd = 0.2, na.rm = TRUE) +
-      coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
-      theme(panel.background = element_rect(fill = "white"), panel.border = element_rect(fill = NA), axis.text.x=element_blank(), axis.text.y=element_blank(), axis.ticks=element_blank(), axis.title = element_blank(), plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt"))
-    
-    # Animate it
-    cog_plot + 
-      transition_time(Time) +
-      labs(title = "Year: {frame_time}") +
-      shadow_mark(alpha = 0.3, size = 0.5)
+  TmbData<- vast_fit$data_list
+  Sdreport<- vast_fit$parameter_estimates$SD
+  
+  # Time series steps
+  time_ind<- 1:TmbData$n_t
+  time_labels<- sort(unique(vast_fit$data_frame$t_i)[time_ind])
+  
+  # Categories
+  categories_ind<- 1:TmbData$n_c
+  
+  # Get the index information
+  SD<- TMB::summary.sdreport(Sdreport)
+  SD_stderr<- TMB:::as.list.sdreport(Sdreport, what = "Std. Error", report = TRUE)
+  SD_estimate<- TMB:::as.list.sdreport(Sdreport, what = "Estimate", report = TRUE)
+  if(vast_fit$settings$bias.correct == TRUE && "unbiased" %in% names(Sdreport)){
+    SD_estimate_biascorrect<- TMB:::as.list.sdreport(Sdreport, what = "Std. (bias.correct)", report = TRUE)
   }
   
+  # Now, populate array with values
+  mean_Z_ctm = array(NA, dim = c(unlist(TmbData[c('n_c','n_t')]), 2, 2), dimnames = list(categories_ind, time_labels, c('Lon', 'Lat'), c('Estimate','Std. Error')))
+  mean_Z_ctm[] = SD[which(rownames(SD) == "mean_Z_ctm"), c('Estimate','Std. Error')]
+  
+  index_res_array = mean_Z_ctm
+  
+  # Data manipulation to get out out the array and to something more "plottable"
+  for(i in seq_along(categories_ind)){
+    index_array_temp<- index_res_array[i, , , ]
+    
+    index_res_temp_est<- data.frame("Time" = as.numeric(rownames(index_array_temp[,,1])), "Category" = categories_ind[i], index_array_temp[,,1]) 
+    index_res_temp_sd<- data.frame("Time" = as.numeric(rownames(index_array_temp[,,1])), "Category" = categories_ind[i], index_array_temp[,,2])
+    names(index_res_temp_sd)[3:4]<- c("Lon_SD", "Lat_SD")
+    index_res_temp_out<- index_res_temp_est %>%
+      left_join(., index_res_temp_sd)
+    
+    if(i == 1){
+      index_res_out<- index_res_temp_out
+    } else {
+      index_res_out<- bind_rows(index_res_out, index_res_temp_out)
+    }
+  }
+  
+  # Get date info instead of time..
+  if(!is.null(vast_fit$covariate_date)){
+    year_start<- min(as.numeric(as.character(vast_fit$covariate_data$Year_Cov)))
+    
+    if(any(grepl("Season", vast_fit$X1_formula))){
+      seasons<- nlevels(unique(vast_fit$covariate_data$Season))
+      if(seasons == 3 & max(time_labels) == 347){
+        time_labels_use<- paste(rep(seq(from = year_start, to = 2100), each = 3), rep(c("SPRING", "SUMMER", "FALL")), sep = "-")
+      }
+    } else {
+      time_labels_use<- paste(rep(seq(from = year_start, to = 2100), each = 1), rep(c("FALL")), sep = "-")
+    }
+    
+    index_res_out$Date<- factor(time_labels_use, levels = time_labels_use)
+    
+  } else {
+    # Just basic years...
+    time_labels_use<- seq(from = min(vast_fit$year_labels), to = max(vast_fit$year_labels))
+    index_res_out$Date<- factor(time_labels_use, levels = time_labels_use)
+  }
+  
+  # Date info
+  index_res_out<- index_res_out %>%
+    mutate(., Year = as.numeric(gsub("([0-9]+).*$", "\\1", Date)))
+  
+  if(any(str_detect(index_res_out$Date, "^[:alpha:]+$"))){
+    index_res_out$Date<- as.Date(paste(index_res_out$Year, ifelse(grepl("SPRING", index_res_out$Date), "-04-15",
+                                                                ifelse(grepl("SUMMER", index_res_out$Date), "-07-15", "-10-15")), sep = ""))
+  } else {
+    index_res_out$Date<- as.Date(paste(index_res_out$Year, "-06-15", sep = ""))
+  }
+  
+  # Making our plots...
+  # First, the map.
+  cog_sf<- st_as_sf(index_res_out, coords = c("Lon", "Lat"), crs = attributes(vast_fit$spatial_list$loc_i)$projCRS)
+  
+  # Transform to be in WGS84
+  cog_sf_wgs84<- st_transform(cog_sf, st_crs(land_sf)) 
+  
+  # Base map
+  cog_plot<- ggplot() +
+    geom_sf(data = cog_sf_wgs84, aes(fill = Time), size = 2, shape = 21) +
+    scale_fill_viridis_c(name = "Year") +
+    geom_sf(data = land_sf, fill = land_color, lwd = 0.2, na.rm = TRUE) +
+    coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
+    theme(panel.background = element_rect(fill = "white"), panel.border = element_rect(fill = NA), axis.text.x=element_blank(), axis.text.y=element_blank(), axis.ticks=element_blank(), axis.title = element_blank(), plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt"))
+  
+  # Now, the lon/lat time series
+  lon_lat_df<- cog_sf_wgs84 %>%
+    mutate(., data.frame(st_coordinates(.))) %>%
+    st_drop_geometry()
+  names(lon_lat_df)[7:8]<- c("Lon", "Lat")
+  
+  if(!is.null(color_pal)){
+    colors_use<- color_pal
+  } else {
+    color_pal<- c('#66c2a5','#fc8d62','#8da0cb','#e78ac3','#a6d854')
+    colors_use<- color_pal[1:length(unique(lon_lat_df$Category))]
+  }
+  
+  lon_ts<- ggplot() +
+    geom_ribbon(data = lon_lat_df, aes(x= Date, ymin = Lon-Lon_SD, ymax = Lon+Lon_SD), fill = '#66c2a5', alpha = 0.3) +
+    geom_line(data = lon_lat_df, aes(x = Date, y =  Lon), color = '#66c2a5', lwd = 2) +
+    #scale_fill_manual(name = "Category", values = '#66c2a5') +
+    scale_x_date(date_breaks = "5 year", date_labels =  "%Y") +
+    ylab("Center of longitude") +
+    xlab("Date") +
+    theme_bw() +
+    theme(legend.title = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) 
+  
+  lat_ts<- ggplot() +
+    geom_ribbon(data = lon_lat_df, aes(x= Date, ymin = Lat-Lat_SD, ymax = Lat+Lat_SD), fill = '#66c2a5', alpha = 0.3) +
+    geom_line(data = lon_lat_df, aes(x = Date, y =  Lat), color = '#66c2a5', lwd = 2) +
+    #scale_fill_manual(name = "Category", values = '#66c2a5') +
+    scale_x_date(date_breaks = "5 year", date_labels =  "%Y") +
+    ylab("Center of latitude") +
+    xlab("Date") +
+    theme_bw() +
+    theme(legend.title = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) 
+  
+  plot_out<- (cog_plot) / (lon_ts + lat_ts) + plot_layout(ncol = 1, nrow = 2, widths = c(0.75, 1), heights = c(0.75, 1))
+  
+  # Save and return it
+  ggsave(plot_out, file = paste(out_dir, "/COG_", "_", nice_category_names, ".jpg", sep = ""))
+  return(plot_out)
 }
 
