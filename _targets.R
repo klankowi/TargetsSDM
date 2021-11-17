@@ -1,4 +1,5 @@
 library(devtools)
+library(gmRi)
 library(Matrix)
 library(VAST)
 library(FishStatsUtils)
@@ -33,16 +34,19 @@ depth_cut<- 400
 fit_year_min<- 1985
 fit_year_max<- 2015
 fit_seasons<- c("SPRING", "SUMMER", "FALL")
-pred_years <- 2100
+pred_years <- 2019
 gam_degree<- 3
 hab_formula<- ~ Season + Year_Cov + bs(Depth, degree = 3, intercept = FALSE) + bs(SST_seasonal, degree = 3, intercept = FALSE) + bs(BT_seasonal, degree = 3, intercept = FALSE) + bs(SS_seasonal, degree = 3, intercept = FALSE) + bs(BS_seasonal, degree = 3, intercept = FALSE) # Seasonal
 hab_env_coeffs_n<- length(attributes(terms.formula(hab_formula))$term.labels)-2 # Seasonal
-field_config<- c("Omega1" = 1, "Epsilon1" = 1, "Omega2" = 1, "Epsilon2" = 1)
-rho_config<- c("Beta1" = 2, "Beta2" = 2, "Epsilon1" = 2, "Epsilon2" = 2)
+field_config<- c("Omega1" = 0, "Epsilon1" = 1, "Omega2" = 0, "Epsilon2" = 1)
+rho_config<- c("Beta1" = 1, "Beta2" = 1, "Epsilon1" = 1, "Epsilon2" = 1)
+bias_correct_use<- TRUE
 
 catch_formula<- ~ factor(Survey)
 strata_use<- data.frame("STRATA" = c("DFO", "GoM", "NMFS_and_DFO", "NMFS", "SNE_and_MAB"))
 
+# Model output
+res_root<- box_path(box_group = "Mills Lab", "Projects/sdm_workflow/targets_output")
 
 # Dynamic files
 nmfs_raw_mk_dir <- function() {
@@ -256,8 +260,7 @@ list(
   # Read in raw covariates and summarize them
   tar_target(
     name = predict_covariates_stack_agg_out,
-    command =  predict_covariates_stack_agg(predict_covariates_raw_dir, ensemble_stat = "mean", summarize = "seasonal", resample_template = here::here("data/supporting", "Rast0.25grid.grd"), out_dir = here::here("data/predict")),
-    format = "file",
+    command =  predict_covariates_stack_agg(predict_covariates_raw_dir, ensemble_stat = "mean", summarize = "seasonal", resample_template = here::here("data/supporting", "Rast0.25grid.grd"), out_dir = here::here("data/predict"))
   ),
 
   # # Processed covariate directory
@@ -306,7 +309,7 @@ list(
   # Make settings
   tar_target(
     name = vast_settings,
-    command = vast_make_settings(extrap_grid = vast_extrap_grid, n_knots = 400, FieldConfig = field_config, RhoConfig = rho_config, OverdispersionConfig = c(0, 0), bias.correct = TRUE, knot_method = "samples", inla_method = "Barrier", Options = c("Calculate_Range"=TRUE), strata.limits = strata_use)
+    command = vast_make_settings(extrap_grid = vast_extrap_grid, n_knots = 400, FieldConfig = field_config, RhoConfig = rho_config, OverdispersionConfig = c(0, 0), bias.correct = bias_correct_use, knot_method = "samples", inla_method = "Barrier", Options = c("Calculate_Range"=TRUE), strata.limits = strata_use)
   ),
 
   # Make spatial lists
@@ -396,19 +399,19 @@ list(
   # Fit model, either the base model OR by making some adjustments
   tar_target(
     name = vast_fit,
-    command = vast_fit_sdm(vast_build_adjust = vast_adjust, nmfs_species_code = nmfs_species_code, out_dir = here::here("results/mod_fits"), index_shapes = index_shapefiles, spatial_info_dir = here::here(""))
+    command = vast_fit_sdm(vast_build_adjust = vast_adjust, nice_category_names = nice_category_names, out_dir = paste0(res_root, "mod_fits"), index_shapes = index_shapefiles, spatial_info_dir = here::here(""))
   ),
 
   # Plot samples and knot locations
   tar_target(
     name = vast_sample_knot_plot,
-    command = vast_plot_design(vast_fit = vast_fit, land = land_sf, spat_grid = here::here("data/predict/predict_stack_SST_seasonal_mean.grd"), xlim = c(-80, -55), ylim = c(35, 50), land_color = "#d9d9d9", out_dir = here::here("results/plots_maps/"))
+    command = vast_plot_design(vast_fit = vast_fit, land = land_sf, spat_grid = here::here("data/predict/predict_stack_SST_seasonal_mean.grd"), xlim = c(-80, -55), ylim = c(35, 50), land_color = "#d9d9d9", out_dir = paste0(res_root, "plots_maps"))
   ),
   
   # Get covariate effects --
   tar_target(
     name = vast_covariate_effects,
-    command = get_vast_covariate_effects(vast_fit = vast_fit, params_plot = c("Depth", "SST_seasonal", "BT_seasonal", "SS_seasonal", "BS_seasonal"), params_plot_levels = 100, effects_pad_values = c(1), nice_category_names = nice_category_names, out_dir = here::here("results/tables/"))
+    command = get_vast_covariate_effects(vast_fit = vast_fit, params_plot = c("Depth", "SST_seasonal", "BT_seasonal", "SS_seasonal", "BS_seasonal"), params_plot_levels = 100, effects_pad_values = c(1), nice_category_names = nice_category_names, out_dir = paste0(res_root, "tables"))
   ),
   # 
   # tar_target(
@@ -424,31 +427,43 @@ list(
   # Plot covariate effects
   tar_target(
     name = vast_covariate_effects_plot,
-    command = plot_vast_covariate_effects(vast_covariate_effects = vast_covariate_effects, vast_fit = vast_fit, nice_category_names = nice_category_names, out_dir = here::here("results/plots_maps/"))
+    command = plot_vast_covariate_effects(vast_covariate_effects = vast_covariate_effects, vast_fit = vast_fit, nice_category_names = nice_category_names, out_dir = paste0(res_root, "plots_maps"))
   ),
   
-  # Predict with fitted model
+  # # Predict with fitted model
+  # tar_target(
+  #   name = vast_predictions,
+  #   command = predict_vast(vast_fitted_sdm = vast_fit, nice_category_names = nice_category_names, predict_variable = "D_i", predict_category = 0, predict_vessel = 0, predict_covariates_df_all = vast_predict_df, out_dir = paste0(res_root, "prediction_df"))
+  # ),
+  
+  # Get VAST predictions
   tar_target(
-    name = vast_predictions,
-    command = predict_vast(vast_fitted_sdm = vast_fit, nmfs_species_code = nmfs_species_code, predict_variable = "D_i", predict_category = 0, predict_vessel = 0, predict_covariates_df_all = vast_predict_df, out_dir = here::here("results/prediction_df"))
+    name = density_preds_df,
+    command = vast_get_extrap_spatial(vast_fit = vast_fit, spatial_var = "D_gct", nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df"))
   ),
 
   # Create gif from predictions
   tar_target(
     name = plot_preds,
-    command = vast_fit_plot_density(vast_fit = vast_fit, nice_category_names = nice_category_names, mask = region_shapefile, all_times = as.character(levels(vast_seasonal_data$VAST_YEAR_SEASON)), plot_times = NULL, land_sf = land_sf, xlim = c(-80, -55), ylim = c(35, 50), panel_or_gif = "gif", out_dir = here::here("results/plots_maps"))
+    command = vast_fit_plot_spatial(vast_fit = vast_fit, spatial_var = "D_gct", nice_category_names = nice_category_names, mask = region_shapefile, all_times = levels(vast_seasonal_data$VAST_YEAR_SEASON), plot_times = NULL, land_sf = land_sf, xlim = c(-80, -55), ylim = c(35, 50), panel_or_gif = "gif", out_dir = paste0(res_root, "plots_maps"), land_color = "#d9d9d9", panel_cols = NULL, panel_rows = NULL)
+  ),
+  
+  # Plot COG
+  tar_target(
+    name = plot_cog,
+    command = vast_plot_cog(vast_fit = vast_fit, all_times = levels(vast_seasonal_data$VAST_YEAR_SEASON), land_sf = land_sf, xlim = c(-80, -55), ylim = c(35, 50), nice_category_names = nice_category_names, land_color = "#d9d9d9", color_pal = NULL, out_dir = paste0(res_root, "plots_maps"))
   ),
 
   # Calculate biomass index values
   tar_target(
     name = biomass_indices,
-    command = get_vast_index_timeseries(vast_fit = vast_fit, nice_category_names = nice_category_names, index_scale = c("raw"), out_dir = here::here("results/tables"))
+    command = get_vast_index_timeseries(vast_fit = vast_fit, all_times = levels(vast_seasonal_data$VAST_YEAR_SEASON), nice_category_names = nice_category_names, index_scale = "raw", out_dir = paste0(res_root, "tables"))
   ),
   
   # Plot biomass index time series
   tar_target(
     name = plot_biomass_timeseries,
-    command = plot_vast_index_timeseries(index_res_df = biomass_indices, index_scale = "raw", nice_category_names = nice_category_names, nice_xlab = "Year-Season", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = here::here("results/plots_maps"))
+    command = plot_vast_index_timeseries(index_res_df = biomass_indices, index_scale = "raw", nice_category_names = nice_category_names, nice_xlab = "Year-Season", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = paste0(res_root, "plots_maps"))
   )
 )
 

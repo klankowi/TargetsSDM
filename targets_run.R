@@ -2,6 +2,9 @@
 ##### Executing _targets.R
 ##########
 library(targets)
+library(parallel)
+library(doFuture)
+library(tictoc)
 
 # Targets set up
 options(tidyverse.quiet = TRUE)

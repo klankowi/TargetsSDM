@@ -433,6 +433,9 @@ corr_coeff_func<- function(df, obs, mod, LeadTime){
 
 # Coefficient of Determination -------------------------------------------------
 coeff_det_func<- function(df, obs, mod, LeadTime){
+  if(FALSE){
+    df<- all_fits_out$PredictionDF
+  }
   # Some house keeping -- rename the obs and mod columns to work with generic functions
   old.names<- c(obs, mod)
   new.names<- c("obs", "mod")
