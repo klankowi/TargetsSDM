@@ -73,6 +73,13 @@ static_extract<- function(rast, cov_name, sf_points, date_col_name, df_sf){
     sf_points = sf_points_run
     date_col_name = date_col_name
     df_sf = "sf"
+    
+    rast = static_layers[[1]]
+    cov_name = "Depth"
+    sf_points = all_tows_sf
+    date_col_name = "DATE"
+    df_sf = "sf"
+    out_dir = here::here("", "data/combined")
   }
   
   # A few checks...

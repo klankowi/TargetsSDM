@@ -218,7 +218,6 @@ tmb_list = do.call( what=make_model, args=model_args_input )
 TmbData<- tmb_list$data_list
 Sdreport<- tmb_list$parameter_estimates$SD
 
-
 Report = tmb_list$Obj$report()
 Y_i = Report[[what]][(1+nrow(x$data_frame)):length(Report$D_i)]
 
@@ -234,13 +233,21 @@ if( do_checks==TRUE && (Report$jnll!=x$Report$jnll) ){
 return(Y_i)
 
 
-
-
-
-
 #####
-## What about sdmTMB's predict since we can't get population level effects...
+## What about glmmTMBs predict..
 #####
+data(sleepstudy,package="lme4")
+g0 <- glmmTMB(Reaction~Days+(Days|Subject),sleepstudy)
+predict(g0, sleepstudy)
+## Predict new Subject
+nd <- sleepstudy[1,]
+nd$Subject <- "new"
+predict(g0, newdata=nd, allow.new.levels=TRUE)
+## population-level prediction
+nd_pop <- data.frame(Days=unique(sleepstudy$Days),Subject=NA)
+predict(g0, newdata=nd_pop)
+
+
 newdata = pred_cov_dat_use
 object = vast_fitted_hab_covs
 
