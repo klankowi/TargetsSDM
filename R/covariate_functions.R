@@ -198,13 +198,21 @@ dynamic_2d_extract<- function(rast_ts_stack, stack_name, t_summ, t_position, sf_
       out<- full_data[row_id, start_col]
       return(out)
     } else {
-      out<- rowMeans(full_data[row_id,start_col:end_col])
+      out<- rowMeans(full_data[row_id,start_col:end_col], na.rm = TRUE)
       return(out)
     }
   }
   
   # For debugging
   if(FALSE){
+    rast_ts_stack = stack_use
+    stack_name = names(dynamic_covariates_list)[[i]]
+    t_summ = t_summ
+    t_position = t_position
+    sf_points = sf_points_run
+    date_col_name = date_col_name
+    df_sf = "sf"
+    
     rast_ts_stack = stack_use
     stack_name = names(dynamic_covariates_list)[[i]]
     t_summ = t_summ
@@ -243,6 +251,10 @@ dynamic_2d_extract<- function(rast_ts_stack, stack_name, t_summ, t_position, sf_
     stop()
   }
   
+  # Arrangement of raster_ts_stack
+  rast_ts_names<- as.Date(gsub("[.]", "-", gsub("X", "", names(rast_ts_stack))))
+  rast_ts_stack<- rast_ts_stack[[order(rast_ts_names)]]
+  
   # To do the matching for seasons, need some type of look up table.
   month_season_table<- data.frame("Month" = str_pad(seq(from = 1, to = 12, by = 1), 2, "left", 0), "Season" = c("Winter", "Winter", "Spring", "Spring", "Spring", "Summer", "Summer", "Summer", "Fall", "Fall", "Fall", "Winter"))
   
@@ -251,6 +263,8 @@ dynamic_2d_extract<- function(rast_ts_stack, stack_name, t_summ, t_position, sf_
   #   rename(., "EST_DATE" := {{date_col_name}})
 
   # Full extraction, all points and layers -----------------------------------------------------------
+  sf_points<- sf_points %>%
+    arrange(., {{date_col_name}})
   sf_extract<- data.frame(raster::extract(rast_ts_stack, sf_points))
   
   # Getting the values we want from full extraction -------------------------
@@ -276,13 +290,10 @@ dynamic_2d_extract<- function(rast_ts_stack, stack_name, t_summ, t_position, sf_
       sf_points_date_col<- as.character(st_drop_geometry(sf_points[,{{date_col_name}}])[,1])
       sf_points_date_col<- ymd(sf_points_date_col)
       
-      # May need to revisit this at some point, but for now, shouldn't influence the results..
-      summ_df$Date_Match<- match(sf_points_date_col, as.Date(colnames(sf_extract)))
-      
       # Column index start based on t_summ_use. Seasonal needs more finagling.
       if(t_summ_use != "seasonal"){
         summ_df$Start_Summ<- switch(t_summ_use,
-                                    "daily" = summ_df$Date_Match,
+                                    "daily" = match(format(sf_points_date_col, "%Y-%m-%d"), format(rast_ts_match, "%Y-%m-%d")),
                                     "monthly" = match(format(sf_points_date_col, "%Y-%m"), format(rast_ts_match, "%Y-%m")),
                                     "annual" = match(format(sf_points_date_col, "%Y"), format(rast_ts_match, "%Y")))
         
@@ -293,7 +304,7 @@ dynamic_2d_extract<- function(rast_ts_stack, stack_name, t_summ, t_position, sf_
                                   "annual" = sapply(format(sf_points_date_col, "%Y"), FUN = function(x) max(which(x == format(rast_ts_match, "%Y")))))
       } else {
         # Season bits, need a year - season combo for both the points AND columns of sf_extract.
-        colnames_orig<- as.Date(gsub("X", "", gsub("[.]", "-", colnames(sf_extract))))
+        colnames_orig<- as.Date(colnames(sf_extract))
         colnames_season<- month_season_table$Season[match(format(colnames_orig, "%m"), month_season_table$Month)]
         colnames_season_match<- paste(format(colnames_orig, "%Y"), colnames_season, sep = "-")
         
@@ -415,6 +426,17 @@ dynamic_2d_extract_wrapper<- function(dynamic_covariates_list, t_summ, t_positio
     date_col_name = "DATE"
     df_sf ="df"
     out_dir = here::here("data/combined")
+    
+    # MESG
+    dynamic_covariates_list = dynamic_covariates_list_use
+    t_summ = "seasonal"
+    t_position = NULL
+    sf_points = tows_sf
+    date_col_name = "Date"
+    df_sf = "sf"
+    out_dir = NULL
+    
+    sf_points_run<- st_as_sf(t, coords = c("DECDEG_BEGLON", "DECDEG_BEGLAT"), crs = st_crs(gom_sf), remove = FALSE)
   }
   
   # For each of the covariate layers in `dynamic_covariates_list` we are going to run our `dynamic_2d_extract` function. I think this might require some creative manipulating of the `sf_points` so we don't lose covariates as we move through them...
