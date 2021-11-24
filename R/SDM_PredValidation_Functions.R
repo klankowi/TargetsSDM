@@ -6,6 +6,9 @@ library(MLmetrics)
 
 # Helper functions: correlation coefficient and bias ----------------------
 corrcoeff_func_simp<- function(df){
+  if(FALSE){
+    
+  }
   df.use<- df %>%
     drop_na(obs, mod)
   mean.obs<- mean(df.use$obs)
@@ -283,12 +286,18 @@ pred_ranges_func<- function(df, mod){
 
 # Area Under the Curve ----------------------------------------------------
 auc_func<- function(df, obs, mod, LeadTime) {
+  if(FALSE){
+    df<- vast_fits_out$PredictionDF[[1]]
+    obs<- "presenceabsence"
+    mod<- "predicted.prob.presence"
+    LeadTime = vast_fits_out$LeadTime[[1]]
+  }
   # Some house keeping -- rename the obs and mod columns to work with generic functions
   old.names<- c(obs, mod)
   new.names<- c("obs", "mod")
   df<- df %>%
     rename_at(vars(all_of(old.names)), ~ new.names) %>% 
-    filter(., year == min(year)+LeadTime)
+    filter(., year == (min(year)-1)+LeadTime)
   
   # Calculate AUC
   if(all(df$obs == 0) | nrow(df) == 0){
@@ -306,7 +315,7 @@ maxkappa_func<- function(df, obs, mod, LeadTime){
   new.names<- c("obs", "mod")
   df<- df %>%
     rename_at(vars(all_of(old.names)), ~ new.names) %>% 
-    filter(., year == min(year)+LeadTime)
+    filter(., year == (min(year)-1)+LeadTime)
   if(nrow(df) == 0){
     return(NA)
   }
@@ -331,7 +340,7 @@ precision_func<- function(df, obs, mod, maxkappa, LeadTime) {
   new.names<- c("obs", "mod")
   df<- df %>%
     rename_at(vars(all_of(old.names)), ~ new.names) %>% 
-    filter(., year == min(year)+LeadTime)
+    filter(., year == (min(year)-1)+LeadTime)
   if(nrow(df) == 0){
     return(NA)
   }
@@ -353,7 +362,7 @@ spec_func<- function(df, obs, mod, maxkappa, LeadTime) {
   new.names<- c("obs", "mod")
   df<- df %>%
     rename_at(vars(all_of(old.names)), ~ new.names) %>% 
-    filter(., year == min(year)+LeadTime)
+    filter(., year == (min(year)-1)+LeadTime)
   if(nrow(df) == 0){
     return(NA)
   }
@@ -375,7 +384,7 @@ fmeasure_func<- function(df, obs, mod, maxkappa, LeadTime) {
   new.names<- c("obs", "mod")
   df<- df %>%
     rename_at(vars(all_of(old.names)), ~ new.names) %>% 
-    filter(., year == min(year)+LeadTime)
+    filter(., year == (min(year)-1)+LeadTime)
   if(nrow(df) == 0){
     return(NA)
   }
@@ -392,12 +401,21 @@ fmeasure_func<- function(df, obs, mod, maxkappa, LeadTime) {
 
 # RMSE ----------------------------------------------------
 rmse_func<- function(df, obs, mod, LeadTime) {
+  if(FALSE){
+    df<- vast_fits_out$PredictionDF[[1]]
+    obs<- "presenceabsence"
+    mod<- "predicted.prob.presence"
+    LeadTime = vast_fits_out$LeadTime[[1]]
+    
+    obs<- "wtcpue"
+    mod<- "predicted.bio"
+  }
   # Some house keeping -- rename the obs and mod columns to work with generic functions
   old.names<- c(obs, mod)
   new.names<- c("obs", "mod")
   df<- df %>%
     rename_at(vars(all_of(old.names)), ~ new.names) %>% 
-    filter(., year == min(year)+LeadTime)
+    filter(., year == (min(year)-1)+LeadTime)
   
   # Calculate RMSE
   if(all(df$obs == 0) | nrow(df) == 0){
@@ -415,7 +433,7 @@ corr_coeff_func<- function(df, obs, mod, LeadTime){
   new.names<- c("obs", "mod")
   df<- df %>%
     rename_at(vars(all_of(old.names)), ~ new.names) %>% 
-    filter(., year == min(year)+LeadTime)
+    filter(., year == (min(year)-1)+LeadTime)
   
   # Calculate Corr Coeff
   if(all(df$obs == 0) | nrow(df) == 0){
@@ -434,14 +452,21 @@ corr_coeff_func<- function(df, obs, mod, LeadTime){
 # Coefficient of Determination -------------------------------------------------
 coeff_det_func<- function(df, obs, mod, LeadTime){
   if(FALSE){
-    df<- all_fits_out$PredictionDF
+    test_run<- 15
+    df<- vast_fits_out$PredictionDF[[test_run]]
+    obs<- "presenceabsence"
+    mod<- "predicted.prob.presence"
+    LeadTime = vast_fits_out$LeadTime[[test_run]]
+    
+    obs<- "wtcpue"
+    mod<- "predicted.bio"
   }
   # Some house keeping -- rename the obs and mod columns to work with generic functions
   old.names<- c(obs, mod)
   new.names<- c("obs", "mod")
   df<- df %>%
     rename_at(vars(all_of(old.names)), ~ new.names) %>% 
-    filter(., year == min(year)+LeadTime)
+    filter(., year == (min(year)-1)+LeadTime)
   
   # Calculate coeff det
   if(all(df$obs == 0) | nrow(df) == 0){
@@ -459,7 +484,7 @@ sd_bias_func<- function(df, obs, mod, LeadTime){
   new.names<- c("obs", "mod")
   df<- df %>%
     rename_at(vars(all_of(old.names)), ~ new.names) %>% 
-    filter(., year == min(year)+LeadTime)
+    filter(., year == (min(year)-1)+LeadTime)
   
   # Calculate bias
   if(all(df$obs == 0) | nrow(df) == 0){
@@ -477,7 +502,7 @@ mae_func<- function(df, obs, mod, LeadTime){
   new.names<- c("obs", "mod")
   df<- df %>%
     rename_at(vars(all_of(old.names)), ~ new.names) %>% 
-    filter(., year == min(year)+LeadTime)
+    filter(., year == (min(year)-1)+LeadTime)
   
   # Calculate mean absolute error
   if(all(df$obs == 0) | nrow(df) == 0){
@@ -491,19 +516,62 @@ mae_func<- function(df, obs, mod, LeadTime){
 
 # Mean Absolute Error -------------------------------------------------
 mase_func<- function(df, obs, mod, LeadTime){
+  if(FALSE){
+    df<- vast_fits_out$PredictionDF[[15]]
+    obs<- "presenceabsence"
+    mod<- "predicted.prob.presence"
+    LeadTime = vast_fits_out$LeadTime[[15]]
+    
+    obs<- "wtcpue"
+    mod<- "predicted.bio"
+  }
+  
   # Some house keeping -- rename the obs and mod columns to work with generic functions
   old.names<- c(obs, mod)
   new.names<- c("obs", "mod")
   df<- df %>%
     rename_at(vars(all_of(old.names)), ~ new.names) %>% 
-    filter(., year == min(year)+LeadTime)
+    filter(., year == (min(year)-1)+LeadTime)
   
   # Calculate mean absolute error
   if(all(df$obs == 0) | nrow(df) == 0){
     return(NA)
   } else {
-    mae<- round(accuracy(df$mod, df$obs, na.rm = TRUE)[,'MAE'], 2)
-    mase.out<- mean(abs((df$mod - df$obs)/mae))
+    errs.scale<- mean(abs(df$obs - mean(df$obs)))
+    errs<- (df$mod - df$obs)/errs.scale
+    mase.out<- mean(abs(errs))
+    # mae<- round(accuracy(df$mod, df$obs, na.rm = TRUE)[,'MAE'], 2)
+    # mase.out<- mean(abs((df$mod - df$obs)/mae))
+    return(mase.out)
+  }
+}
+
+mase_func_simp<- function(df, obs, mod){
+  if(FALSE){
+    df<- vast_fits_out$PredictionDF[[15]]
+    obs<- "presenceabsence"
+    mod<- "predicted.prob.presence"
+    LeadTime = vast_fits_out$LeadTime[[15]]
+    
+    obs<- "wtcpue"
+    mod<- "predicted.bio"
+  }
+  
+  # Some house keeping -- rename the obs and mod columns to work with generic functions
+  old.names<- c(obs, mod)
+  new.names<- c("obs", "mod")
+  df<- df %>%
+    rename_at(vars(all_of(old.names)), ~ new.names) 
+  
+  # Calculate mean absolute error
+  if(all(df$obs == 0) | nrow(df) == 0){
+    return(NA)
+  } else {
+    errs.scale<- mean(abs(df$obs - mean(df$obs)))
+    errs<- (df$mod - df$obs)/errs.scale
+    mase.out<- mean(abs(errs))
+    # mae<- round(accuracy(df$mod, df$obs, na.rm = TRUE)[,'MAE'], 2)
+    # mase.out<- mean(abs((df$mod - df$obs)/mae))
     return(mase.out)
   }
 }

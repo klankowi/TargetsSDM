@@ -468,6 +468,8 @@ read_polyshape<- function(polyshape_path){
 #'
 #' @param region_shapefile = A geospatial vector sf polygon file, specifying the location and shape of the area of of spatial domain
 #' @param index_shapes = A multipolygon geospatial vector sf polygon file, specifying sub regions of interest. Grid locations are assigned to their subregion within the total spatial domain. 
+#' @param strata.limits
+#' @param sample_points
 #' @param cell_size = The size of grid in meters (since working in UTM). This will control the resolution of the extrapolation grid.
 #'
 #' @return Tagged list containing extrapolation grid settings needed to fit a VAST model of species occurrence.
@@ -482,6 +484,11 @@ vast_make_extrap_grid<- function(region_shapefile, index_shapes, strata.limits, 
     index_shapes = index_shapefiles
     strata.limits = strata_use
     cell_size = 25000
+    
+    region_shapefile = menh_chull
+    index_shapes = menh_regions_out
+    strata.limits = strata_use
+    cell_size = 5000
   }
   
   # Transform crs of shapefile to common WGS84 lon/lat format.
@@ -506,14 +513,27 @@ vast_make_extrap_grid<- function(region_shapefile, index_shapes, strata.limits, 
   
   # Convert back to WGS84 lon/lat, as that is what VAST expects.
   extrap_grid<- region_grid %>%
-    st_transform(., crs = "+proj=longlat +lat_0=90 +lon_0=180 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0 ") %>%
-    st_join(., index_shapes, join = st_within) %>%
-    mutate(., "Lon" = as.numeric(st_coordinates(.)[,1]),
-           "Lat" = as.numeric(st_coordinates(.)[,2])) %>%
-    st_drop_geometry() %>%
-    dplyr::select(., Lon, Lat, Region) %>%
-    mutate(., Area_km2=((cell_size/1000)^2),
-           STRATA = factor(Region, levels = index_shapes$Region, labels = index_shapes$Region))
+    st_transform(., crs = "+proj=longlat +lat_0=90 +lon_0=180 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +ellps=WGS84 +towgs84=0,0,0 ")
+  
+  # Adding in the a strata/region component for stratified abundance. This will depend on index_shapes input.
+  if(!is.null(index_shapes)){
+    extrap_grid<- extrap_grid %>%
+      st_join(., index_shapes, join = st_within) %>%
+      mutate(., "Lon" = as.numeric(st_coordinates(.)[,1]),
+             "Lat" = as.numeric(st_coordinates(.)[,2])) %>%
+      st_drop_geometry() %>%
+      dplyr::select(., Lon, Lat, Region) %>%
+      mutate(., Area_km2=((cell_size/1000)^2),
+             STRATA = factor(Region, levels = index_shapes$Region, labels = index_shapes$Region))
+  } else {
+    extrap_grid<- extrap_grid %>%
+      mutate(., "Lon" = as.numeric(st_coordinates(.)[,1]),
+             "Lat" = as.numeric(st_coordinates(.)[,2])) %>%
+      st_drop_geometry() %>%
+      dplyr::select(., Lon, Lat) %>%
+      mutate(., Area_km2=((cell_size/1000)^2))
+  }
+ 
   
   # Return it
   return(extrap_grid)
@@ -563,7 +583,7 @@ vast_make_settings <- function(extrap_grid, n_knots, FieldConfig, RhoConfig, Ove
       options_adjust_i<- Options[i]
       options_new[[which(names(options_new) == names(options_adjust_i))]]<- options_adjust_i
     }
-    settings_out<- make_settings(n_x = n_knots, Region = "User", purpose = "index2", FieldConfig = FieldConfig, RhoConfig = RhoConfig, ObsModel = c(1, 1), OverdispersionConfig = OverdispersionConfig, bias.correct = bias.correct, knot_method = knot_method, treat_nonencounter_as_zero = FALSE, strata.limits = strata.limits, Options = options_new)
+    settings_out<- make_settings(n_x = n_knots, Region = "User", purpose = "index2", FieldConfig = FieldConfig, RhoConfig = RhoConfig, ObsModel = c(2, 1), OverdispersionConfig = OverdispersionConfig, bias.correct = bias.correct, knot_method = knot_method, treat_nonencounter_as_zero = FALSE, strata.limits = strata.limits, Options = options_new)
     settings_out$Method<- inla_method
   }
   
@@ -1877,6 +1897,12 @@ get_vast_index_timeseries<- function(vast_fit, all_times, nice_category_names, i
     nice_category_names = "Atlantic halibut"
     index_scale = "raw"
     out_dir = here::here("scratch/aja/TargetsSDM/results/tables")
+    
+    vast_fit = vast_fitted_hab_covs
+    all_times = unique(vast_sample_data$Year)
+    nice_category_names = nice_category_names
+    index_scale = c("raw")
+    out_dir = here::here("", "Objective 3/Temp_Results")
   }
   
   TmbData<- vast_fit$data_list
@@ -1922,15 +1948,28 @@ get_vast_index_timeseries<- function(vast_fit, all_times, nice_category_names, i
   
   # Data manipulation to get out out the array and to something more "plottable"
   for(i in seq_along(categories_ind)){
-    index_array_temp<- index_res_array[i, , , ]
+    index_array_temp<- index_res_array[i, , ,]
     
-    index_res_temp_est<- data.frame("Time" = as.numeric(rownames(index_array_temp[,,1])), "Category" = categories_ind[i], index_array_temp[,,1]) %>%
-      pivot_longer(cols = -c(Time, Category), names_to = "Index_Region", values_to = "Index_Estimate")
-    index_res_temp_sd<- data.frame("Time" = as.numeric(rownames(index_array_temp[,,1])), "Category" = categories_ind[i], index_array_temp[,,2]) %>%
-      pivot_longer(cols = -c(Time, Category), names_to = "Index_Region", values_to = "Index_SD")
-    index_res_temp_out<- index_res_temp_est %>%
-      left_join(., index_res_temp_sd)
+    if(length(dim(index_array_temp)) == 2){
+      index_res_temp_est<- data.frame("Time" = as.numeric(rownames(index_array_temp)), "Category" = categories_ind[i], index_array_temp[,1])
+      colnames(index_res_temp_est)[3]<- "Index_Estimate"
+      index_res_temp_est$Index_Region<- index_regions
+       
+      index_res_temp_sd<- data.frame("Time" = as.numeric(rownames(index_array_temp)), "Category" = categories_ind[i], index_array_temp[,2])
+      colnames(index_res_temp_sd)[3]<- "Index_SD"
+      index_res_temp_sd$Index_Region<- index_regions
     
+      index_res_temp_out<- index_res_temp_est %>%
+        left_join(., index_res_temp_sd)
+    } else {
+      index_res_temp_est<- data.frame("Time" = as.numeric(rownames(index_array_temp[,,1])), "Category" = categories_ind[i], index_array_temp[,,1]) %>%
+        pivot_longer(cols = -c(Time, Category), names_to = "Index_Region", values_to = "Index_Estimate")
+      index_res_temp_sd<- data.frame("Time" = as.numeric(rownames(index_array_temp[,,1])), "Category" = categories_ind[i], index_array_temp[,,2]) %>%
+        pivot_longer(cols = -c(Time, Category), names_to = "Index_Region", values_to = "Index_SD")
+      index_res_temp_out<- index_res_temp_est %>%
+        left_join(., index_res_temp_sd)
+    }
+ 
     if(i == 1){
       index_res_out<- index_res_temp_out
     } else {
@@ -1999,7 +2038,9 @@ get_vast_index_timeseries<- function(vast_fit, all_times, nice_category_names, i
     index_res_out$Date<- as.Date(paste(index_res_out$Year, ifelse(grepl("SPRING", index_res_out$Date), "-04-15",
                                                                   ifelse(grepl("SUMMER", index_res_out$Date), "-07-15", "-10-15")), sep = ""))
   } else {
-    index_res_out$Date<- as.Date(paste(index_res_out$Year, "-06-15", sep = ""))
+    # Staggered data sequence...
+    month_day_seqs<- seq.Date(from = as.Date(paste0(min(index_res_out$Year), "-05-01")), to = as.Date(paste0(min(index_res_out$Year), "-07-30")), by = "day")
+    index_res_out$Date<- as.Date(paste(index_res_out$Year, format(sample(month_day_seqs, size = nrow(index_res_out), replace = TRUE), "%m-%d"), sep = "-"))
   }
   
   # Save and return it
@@ -2020,6 +2061,15 @@ plot_vast_index_timeseries<- function(index_res_df, year_stop = NULL, index_scal
     paneling<- "none"
     date_breaks<- "5 year"
     out_dir = paste0(res_root, "plots_maps")
+    
+    index_res_df = biomass_indices
+    index_scale = "raw"
+    nice_category_names = nice_category_names
+    nice_xlab = "Year"
+    nice_ylab= "Biomass index (metric tons)"
+    paneling = "none"
+    color_pal = NULL
+    out_dir = here::here("", "Objective 3/Temp_Results")
   }
   
   if(paneling == "none"){
@@ -2035,12 +2085,15 @@ plot_vast_index_timeseries<- function(index_res_df, year_stop = NULL, index_scal
       index_res_df<- index_res_df %>%
         filter(., Year < year_stop)
     }
-
+    
+    # Date axis
+    date_breaks<- seq.Date(from = as.Date(paste(min(index_res_df$Year), "06-15", sep = "-")), to = as.Date(paste(max(index_res_df$Year), "06-15", sep = "-")), by = "year")
     plot_out<- ggplot() +
-      geom_errorbar(data = index_res_df, aes(x = Date, ymin = (Index_Estimate - Index_SD), ymax = (Index_Estimate + Index_SD), color = Index_Region, group = Index_Region)) + 
+      geom_errorbar(data = index_res_df, aes(x = Date, ymin = (Index_Estimate - Index_SD), ymax = (Index_Estimate + Index_SD), color = Index_Region, group = Index_Region), alpha = 0.65) + 
       geom_point(data = index_res_df, aes(x = Date, y = Index_Estimate, color = Index_Region)) +
+      geom_line(data = index_res_df, aes(x = Date, y = Index_Estimate, color = Index_Region)) +
       scale_color_manual(values = colors_use) +
-      scale_x_date(date_breaks = "5 year", date_labels =  "%Y") +
+      scale_x_date(breaks = date_breaks, date_labels = "%Y") +
       xlab({{nice_xlab}}) +
       ylab({{nice_ylab}}) +
       ggtitle({{nice_category_names}}) + 
@@ -2558,7 +2611,7 @@ vast_mesh_to_sf <- function(vast_fit, crs_transform = "+proj=longlat +datum=WGS8
 #'
 #' @export
 
-vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mask, all_times = all_times, plot_times = NULL, land_sf, xlim, ylim, panel_or_gif = "gif", out_dir, land_color = "#d9d9d9", panel_cols = NULL, panel_rows = NULL, ...){
+vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mask, all_times = all_times, plot_times = NULL, land_sf, xlim, ylim, x_dim_length = 115, y_dim_length = 133, lab_lat = 33.75, lab_lon = -67.5, panel_or_gif = "gif", out_dir, land_color = "#d9d9d9", panel_cols = NULL, panel_rows = NULL, ...){
   if(FALSE){
     tar_load(vast_fit)
     template = raster("~/GitHub/sdm_workflow/scratch/aja/TargetsSDM/data/supporting/HighResTemplate.grd")
@@ -2590,6 +2643,25 @@ vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mas
     land_color = "#d9d9d9"
     panel_cols = 6
     panel_rows = 7
+    
+    vast_fit = vast_fitted_hab_covs
+    spatial_var = "D_gct"
+    nice_category_names = nice_category_names
+    mask = menh_chull
+    all_times = as.character(unique(vast_sample_data$Year))
+    plot_times = NULL
+    land_sf = land
+    xlim = xlim_use
+    ylim = ylim_use
+    panel_or_gif = "panel"
+    out_dir = out_dir_use
+    land_color = "#d9d9d9"
+    panel_cols = 4
+    panel_rows = 5
+    x_dim_length = 715
+    y_dim_length = 733
+    lab_lon = -67.5
+    lab_lat = 43
   }
   
   # Plotting at spatial knots...
@@ -2632,8 +2704,8 @@ vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mas
     # Interpolation
     pred_df<- na.omit(data.frame("x" = data_df$Lon, "y" = data_df$Lat, "layer" = data_df$z))
     pred_df_interp<- interp(pred_df[,1], pred_df[,2], pred_df[,3], duplicate = "mean", extrap = TRUE,
-                            xo=seq(-87.99457, -57.4307, length = 115),
-                            yo=seq(22.27352, 48.11657, length = 133))
+                            xo=seq(-87.99457, -57.4307, length = x_dim_length),
+                            yo=seq(22.27352, 48.11657, length = y_dim_length))
     pred_df_interp_final<- data.frame(expand.grid(x = pred_df_interp$x, y = pred_df_interp$y), z = c(round(pred_df_interp$z, 2)))
     pred_sp<- st_as_sf(pred_df_interp_final, coords = c("x", "y"), crs = CRS_orig)
     
@@ -2646,7 +2718,7 @@ vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mas
     plot_out<- ggplot() +
       geom_tile(data = pred_df_use, aes(x = x, y = y, fill = z)) +
       scale_fill_viridis_c(name = spatial_var, option = "viridis", na.value = "transparent", limits = rast_lims) +
-      annotate("text", x = -65, y = 37.5, label = spatial_var) +
+      annotate("text", x = lab_lon, y = lab_lat, label = spatial_var) +
       geom_sf(data = land_sf, fill = land_color, lwd = 0.2, na.rm = TRUE) +
       coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
       theme(panel.background = element_rect(fill = "white"), panel.border = element_rect(fill = NA), axis.text.x=element_blank(), axis.text.y=element_blank(), axis.ticks=element_blank(), axis.title = element_blank(), plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt"))
@@ -2661,8 +2733,8 @@ vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mas
       # Interpolation
       pred_df<- na.omit(data.frame("x" = data_df$Lon, "y" = data_df$Lat, "layer" = data_df$z))
       pred_df_interp<- interp(pred_df[,1], pred_df[,2], pred_df[,3], duplicate = "mean", extrap = TRUE,
-                              xo=seq(-87.99457, -57.4307, length = 115),
-                              yo=seq(22.27352, 48.11657, length = 133))
+                              xo=seq(-87.99457, -57.4307, length = x_dim_length),
+                              yo=seq(22.27352, 48.11657, length = y_dim_length))
       pred_df_interp_final<- data.frame(expand.grid(x = pred_df_interp$x, y = pred_df_interp$y), z = c(round(pred_df_interp$z, 2)))
       pred_sp<- st_as_sf(pred_df_interp_final, coords = c("x", "y"), crs = CRS_orig)
       
@@ -2677,7 +2749,7 @@ vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mas
       rasts_out[[tI]]<- ggplot() +
         geom_tile(data = pred_df_use, aes(x = x, y = y, fill = z)) +
         scale_fill_viridis_c(name = spatial_var, option = "viridis", na.value = "transparent", limits = rast_lims) +
-        annotate("text", x = -65, y = 37.5, label = time_plot_use) +
+        annotate("text", x = lab_lon, y = lab_lat, label = time_plot_use) +
         geom_sf(data = land_sf, fill = land_color, lwd = 0.2, na.rm = TRUE) +
         coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
         theme(panel.background = element_rect(fill = "white"), panel.border = element_rect(fill = NA), axis.text.x=element_blank(), axis.text.y=element_blank(), axis.ticks=element_blank(), axis.title = element_blank(), plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt"))
@@ -2992,4 +3064,129 @@ vast_plot_cog<- function(vast_fit, all_times, summarize = TRUE, land_sf, xlim, y
   ggsave(plot_out, file = paste(out_dir, "/COG_", "_", nice_category_names, ".jpg", sep = ""))
   return(plot_out)
 }
+
+# JSDM factors
+vast_fit<- vast_jsdm_fit
+an <- as.numeric
+DF<- vast_fit$data_frame
+
+Year_Set = vast_fit$year_labels
+Years2Include = Year_Set
+spp <- species_keep
+category_names = spp 
+L_list  <- Var_list <-  vector('list', length = 4)
+names(L_list)   <- names(Var_list) <-  c("Omega1", "Epsilon1", "Omega2", "Epsilon2")
+Data = vast_fit$data_list
+ParHat = vast_fit$ParHat
+Report = vast_fit$Report
+for(i in 1:4) {
+  Par_name = names(L_list)[i] 
+  FieldConfig_ind<- switch(Par_name,
+                           "Omega1" = c(1,1),
+                           "Omega2" = c(1,2),
+                           "Epsilon1" = c(2,1),
+                           "Epsilon2" = c(2, 2))
+  if(i %in% c(1,3)) Var_name = paste('Omega','input', substring(Par_name, 6,6), '_sf', sep = '')
+  if(i %in% c(2,4)) Var_name = paste('Epsilon','input', substring(Par_name, 8,8), '_sft', sep = '')
+  
+  L_list[[Par_name]] <- calc_cov(L_z = ParHat[[paste0('L_',tolower(Par_name), '_z')]], n_f = Data$FieldConfig[FieldConfig_ind[1], FieldConfig_ind[2]], n_c = Data$n_c, returntype = 'loadings_matrix')
+  rownames(L_list[[Par_name]]) <- category_names
+  Var_list[[Par_name]]  <- FishStatsUtils::rotate_factors(L_pj = L_list[[Par_name]], Psi = Report[[Var_name]], RotationMethod = 'PCA', testcutoff = 1e-04)
+  rownames(Var_list[[Par_name]]$L_pj_rot) <- category_names
+}
+
+
+
+Omega1_sf   <- apply(Var_list$"Omega1"$Psi_rot, 1:2, FUN = mean)
+Omega2_sf   <- apply(Var_list$"Omega2"$Psi_rot, 1:2, FUN = mean)
+Epsilon1_sf <- apply(Var_list$"Epsilon1"$Psi_rot, 1:2, FUN = mean)
+Epsilon2_sf <- apply(Var_list$"Epsilon2"$Psi_rot, 1:2, FUN = mean)
+
+
+#############
+## the Map ##
+#############
+DF <- data.frame(X = Centers[,'E_km'], Y = Centers[,'N_km'])
+xlim = xlim_use
+ylim = ylim_use
+
+## The map for all areas
+max_rows<- 457
+Omega1_sf <- Omega1_sf[1:max_rows,]
+Omega2_sf <- Omega2_sf[1:max_rows,]
+Epsilon1_sf <- Epsilon1_sf[1:max_rows,]
+Epsilon2_sf <- Epsilon2_sf[1:max_rows,]
+
+Omega1_sf <- as.data.frame(Omega1_sf)
+Omega2_sf <- as.data.frame(Omega2_sf)
+Epsilon1_sf <- as.data.frame(Epsilon1_sf)
+Epsilon2_sf <- as.data.frame(Epsilon2_sf)
+
+Omega1_sf$x2i <- 1:457
+Omega2_sf$x2i <- 1:457
+Epsilon1_sf$x2i <- 1:457
+Epsilon2_sf$x2i <- 1:457
+
+DF2 <- MapDetails_List[['PlotDF']]
+
+DF3_O1 <- merge(DF2, Omega1_sf)
+DF3_O2 <- merge(DF2, Omega2_sf)
+DF3_E1 <- merge(DF2, Epsilon1_sf)
+DF3_E2 <- merge(DF2, Epsilon2_sf)
+
+DF3_O1 <- DF3_O1[DF3_O1$Include==T,]
+DF3_O2 <- DF3_O2[DF3_O2$Include==T,]
+DF3_E1 <- DF3_E1[DF3_E1$Include==T,]
+DF3_E2 <- DF3_E2[DF3_E2$Include==T,]
+
+colnames(DF3_O1)[5:13] <- colnames(DF3_O2)[5:13] <- paste("factor",1:9, sep = '_')
+colnames(DF3_E1)[5:13] <- colnames(DF3_E2)[5:13] <- paste("factor",1:9, sep = '_')
+
+DF4_O1 <- melt(DF3_O1, id = c("x2i", "Lat","Lon","Include")); colnames(DF4_O1)[6] <- "Spatial Encounter Prob"
+DF4_O2 <- melt(DF3_O2, id = c("x2i", "Lat","Lon","Include")); colnames(DF4_O2)[6] <- "Spatial Density"
+DF4_E1 <- melt(DF3_E1, id = c("x2i", "Lat","Lon","Include")); colnames(DF4_E1)[6] <- "Spatio-temporal Encounter Prob"
+DF4_E2 <- melt(DF3_E2, id = c("x2i", "Lat","Lon","Include")); colnames(DF4_E2)[6] <- "Spatio-temporal Density"
+
+
+cols <- brewer.pal(8, 'Set1')
+
+library(dplyr)
+
+#p1 <- ggplot() + geom_point(data = filter(DF4_O1, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
+#			    geom_point(data = filter(DF4_O1, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) + 
+#    coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
+#  scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
+#  facet_grid(variable ~.)
+
+#p2 <- ggplot() + geom_point(data = filter(DF4_O2, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
+#			    geom_point(data = filter(DF4_O2, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) + 
+#    coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
+#  scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
+#  facet_wrap(~variable, ncol = 1)
+
+
+DF5 <- merge(DF4_O1, DF4_O2)
+DF5 <- melt(DF5, id = c("x2i", "Lat", "Lon", "Include","variable"))
+colnames(DF5)[c(5,6)] <- c("factor", "parameter")
+
+ggplot() + geom_point(data = filter(DF5, factor %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
+  geom_point(data = filter(DF5, factor %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) + 
+  coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
+  scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
+  facet_grid(factor~parameter)
+
+ggsave(file = file.path('..', 'plots', 'SpatialFactorLoadingsOmega1Omega2.png'), width = 8, height = 12)
+
+
+DF6 <- merge(DF4_E1, DF4_E2)
+DF6 <- melt(DF6, id = c("x2i", "Lat", "Lon", "Include","variable"))
+colnames(DF6)[c(5,6)] <- c("factor", "parameter")
+
+ggplot() + geom_point(data = filter(DF6, factor %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
+  geom_point(data = filter(DF6, factor %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) + 
+  coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
+  scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
+  facet_grid(factor~parameter)
+
+ggsave(file = file.path('..', 'plots', 'SpatialFactorLoadingsEpsilon1Epsilon2.png'), width = 8, height = 12)
 

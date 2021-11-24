@@ -37,4 +37,6 @@ Editing any of these objects is allowed and facilitated in the same way as the c
 ### Executing the workflow remotely
 Coming soon...
 
+### Results Roadmap
+For GMRI folks, please see the note on Box in Box/Mills Lab/Projects/sdm_workflow/targets_output for an orientation to where results from this workflow are stored.
 
