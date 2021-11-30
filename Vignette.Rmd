@@ -40,6 +40,9 @@ source(here::here("", "R/SDM_PredValidation_Functions.R"))
 
 # Run?
 eval_use<- FALSE
+
+# Start at the habitat covariates part and skip the base model?
+hab_cov_start<- TRUE
 ```
 
 ```{r, echo = FALSE}
@@ -398,15 +401,53 @@ Working through the basic workflow and fitting the "simple" VAST model is no sma
 
 ## Habitat covariates
 ### Model building and fitting
-Let's start by adding in some habitat covariates and an autoregressive structure to the model intercepts to facilitate using the model to make predictions or forecasts. **As far as I know, without adjusting this structure we will not be able to make any predictions beyond the time horizon used in fitting the model.** Hopefully, this process looks somewhat familiar to those have have fit an "environment-only" species distribution model where we are including some static/dynamic values for variables that we think influence a species occurrence pattern. With many modeling approaches, all of this information can be in one dataframe -- similar to our tidy model dataframe. With VAST, we actually want to separate out a specific "covariate data" dataframe. 
+Let's start by adding in some habitat covariates and an autoregressive structure to the model intercepts to facilitate using the model to make predictions or forecasts. **As far as I know, without adjusting this structure we will not be able to make any predictions beyond the time horizon used in fitting the model.** Hopefully, this process looks somewhat familiar to those who have fit an "environment-only" species distribution model where we are including some static/dynamic values for variables that we think influence a species occurrence pattern. With many modeling approaches, all of this information can be in one dataframe -- similar to our tidy model dataframe. With VAST, we actually want to separate out a specific "covariate data" dataframe. 
 
 ```{r, eval = eval_use}
+# Read in data we need if we are picking the vignette up from this point and haven't run the previous section
+if(hab_cov_start){
+  # Read it in
+  tidy_mod_data<- readRDS(here::here("", "data/combined/tidy_mod_data.rds"))
+  
+  # Filter tidy model data to keep only one species of interest -- Halibut in this case
+tidy_mod_data_run<- tidy_mod_data %>%
+  dplyr::filter(., DFO_SPEC == 30)
+
+  # Read in other supporting files we will need
+  region_shape<- st_read(here::here("", "data/supporting/region_shapefile/full_survey_region.shp"))
+
+# Second, get our index area shapefile
+# We could just use this same shapefile in the "index_shapes" argument, but to show off the new functions we wrote, we will also want to have a sf multipolygon shapefiles with areas defined within this general region
+index_areas<- c("DFO", "NMFS")
+
+for(i in seq_along(index_areas)){
+  index_area_temp<- st_read(paste0(here::here("", "data/supporting/index_shapefiles/"), index_areas[i], ".shp"))
+  
+  if(i < length(index_areas)){
+    index_area_shapes<- index_area_temp
+  } else {
+    index_area_shapes<- bind_rows(index_area_shapes, index_area_temp)
+  }
+}
+
+index_area_shapes
+
+# Finally, run `vast_make_extrap_grid` function after specifying the strata we want to use
+strata_use<- data.frame("STRATA" = c("DFO", "NMFS"))
+vast_extrap_grid<- vast_make_extrap_grid(region_shapefile = region_shape, index_shapes = index_area_shapes, strata.limits = strata_use, cell_size = 35000)
+
+vast_extrap_grid_nona<- vast_extrap_grid %>%
+  filter(., !is.na(STRATA))
+}
+
 # We will need a covariate data frame
 vast_covariate_data<- data.frame("Year" = tidy_mod_data_run$EST_YEAR, "Depth" = tidy_mod_data_run$Depth, "SST_seasonal" = tidy_mod_data_run$SST_seasonal, "BT_seasonal" = tidy_mod_data_run$BT_seasonal, "Lat" = tidy_mod_data_run$DECDEG_BEGLAT, "Lon" = tidy_mod_data_run$DECDEG_BEGLON)
 ```
 
 We will also need to modify this "covariate" dataframe and our "sample" dataframe slightly. This modification involves providing a dummy observation for any time step we might be interested in predicting (or forecasting). Importantly, we change the `Pred_TF` value for this observation from 0 to 1 to signal TMB to only use the observation in the predicted component and not in estimating the likelihood. This becomes more important later on as we bring in climate model projection data. For now, though, we are just going to imagine we are interested in applying the model to forecast to 2020, so we need at least one observation for 2020 in the sample and covariate dataframes. **Importantly, the number of observations supplied will influence derived products, like stratified biomass indices**
 ```{r, eval = eval_use}
+vast_sample_data<- data.frame("Year" = tidy_mod_data_run$EST_YEAR, "Lat" = tidy_mod_data_run$DECDEG_BEGLAT, "Lon" = tidy_mod_data_run$DECDEG_BEGLON, "Biomass" = tidy_mod_data_run$BIOMASS, "Swept" = ifelse(tidy_mod_data_run$SURVEY == "NMFS", 0.0384, 0.0404), "Pred_TF" = rep(0, nrow(tidy_mod_data_run)))
+
 samps<- sample(1:nrow(vast_covariate_data), size = 1, replace = FALSE)
 dummy_dat_cov<- vast_covariate_data[samps,]
 dummy_dat_cov$Year<- 2020
@@ -467,6 +508,12 @@ vast_fitted_hab_covs<- vast_fit_sdm(vast_build_adjust = vast0_hab_covs, nice_cat
 One of the first things we might be interested in is comparing the new model with habitat covariates to the base model (`vast0`). There are a variety of different approaches for model comparison. Here, we are most interested in model predictive skill. After getting our "observed and predicted" dataset for the new model, we can then compare different predictive skill statistics. Additionally, we can plot the two models on the same Taylor Diagram, which gives an easy way of discerning the performance of each model relative to one another.
 
 ```{r, eval = eval_use}
+if(hab_cov_start){
+  # Get base predictions
+  obs_pred0<- readRDS(here::here("", "results/tables/Atlantic_halibut_obs_pred.rds"))
+  auc0<- AUC(y_pred = obs_pred0$Predicted_ProbPresence, y_true = obs_pred0$Presence)
+}
+
 # Get observation and prediction dataset
 obs_pred_habcovs<- vast_get_point_preds(vast_fit = vast_fitted_hab_covs, use_PredTF_only = FALSE, nice_category_names = "Atlantic_halibut_habcovs", out_dir = here::here("", "results/tables"))
 
@@ -490,6 +537,7 @@ knitr::include_graphics("results/plots_maps/Atlantic halibut_comp_TaylorDiagram.
 
 Another thing that might of interest now is visualizing the fitted smooth functions defining the relationship between species occurrence and the environmental variables. To do that, we can run our `get_vast_covariate_effects` and `plot_vast_covariate_effects` functions. 
 ```{r, eval = eval_use}
+
 vast_habcovs_effs<- get_vast_covariate_effects(vast_fit = vast_fitted_hab_covs, params_plot = c("Depth", "SST_seasonal", "BT_seasonal"), params_plot_levels = 100, effects_pad_values = c(), nice_category_names = "Atlantic_halibut", out_dir = here::here("", "results/tables"))
 
 # Warnings are...interesting....
@@ -502,6 +550,12 @@ knitr::include_graphics("results/plots_maps/Atlantic halibut_covariate_effects.j
 
 As with our basic model, we can do a whole bunch of things after we've fit and evaluated/validated the model. For example, we could look at the estimated biomass and see how that compares to the basic model.
 ```{r, eval = eval_use}
+if(hab_cov_start){
+  # Get base predictions
+  biomass_indices<- read_csv(here::here("", "results/tables/Biomass_Index_raw_Atlantic_halibut.csv")) %>%
+    dplyr::select(., -X1)
+}
+
 biomass_indices_habcovs<- get_vast_index_timeseries(vast_fit = vast_fitted_hab_covs, all_times = unique(vast_sample_data_aug$Year), nice_category_names = "Atlantic_halibut_habcovs", index_scale = c("raw"), out_dir = here::here("", "results/tables"))
 
 unique(biomass_indices_habcovs$Index_Region)
@@ -515,6 +569,9 @@ plot_vast_index_timeseries(index_res_df = biomass_indices_both, index_scale = "r
 ```
 
 Finally, we might be interested in using our model to make predictions. In this case, one of the easiest things to think about would be making a forecast using expected future sea surface and bottom temperature values. These values get passed to a `predict` style function as a `new_covariate_data` dataframe. Although we haven't necessarily gone through and actually gathered these "future" values from a regional ocean model or a global climate model, we can easily create something with a similar structure just using the data we already have and then pretend like the observations represent those from a physical ocean forecast model.
+
+**An important note here about the prediction piece.** Just like other modeling frameworks, without considerable futzing around, predictions are only going to be possible for data with factor levels that the model has knowledge about. As a simple example, if we built a simple linear model and had "Age" as a factor and our data included "Ages" from 15 to 20, we wouldn't be able to make a prediction for a "21" year old -- that factor level is completely foreign to the model. This is why we included "2020" as a dummy variable, so that when we go to make predictions, we can predict to "2020" as the model knew about it. Looking ahead, for the climate scale projections, we would need a dummy observation for each year (and season) from 2020 to 2100.
+
 ```{r, eval = eval_use}
 # Grab a sample of data from the last three years of observations to use as "fake" temperature forecasts
 fitted_dat<- vast_fitted_hab_covs$covariate_data
@@ -522,7 +579,7 @@ pred_df<- fitted_dat %>%
   filter(., Year >= 2015)
 pred_df<- pred_df[sample(1:nrow(pred_df), size = 250, replace = FALSE), ]
 
-# Manually fudge the year to pretend like it comes from "the future"
+# Manually fudge the year to pretend like it comes from "the future".
 pred_df$Year<- 2020
 
 summary(pred_df)

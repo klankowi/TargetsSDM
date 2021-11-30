@@ -944,6 +944,12 @@ vast_fit_sdm <- function(vast_build_adjust, nice_category_names, index_shapes, s
     tar_load(index_shapefiles)
     index_shapes = index_shapefiles
     spatial_info_dir = here::here("")
+    
+    vast_build_adjust = vast_adjust
+    nice_category_names = nice_category_names
+    out_dir = paste0(res_root, "mod_fits")
+    index_shapes = index_shapefiles
+    spatial_info_dir = here::here("")
   }
   
   # Build and fit model
@@ -1899,10 +1905,10 @@ get_vast_index_timeseries<- function(vast_fit, all_times, nice_category_names, i
     out_dir = here::here("scratch/aja/TargetsSDM/results/tables")
     
     vast_fit = vast_fitted_hab_covs
-    all_times = unique(vast_sample_data$Year)
-    nice_category_names = nice_category_names
+    all_times = unique(vast_sample_data_aug$Year)
+    nice_category_names = "Atlantic_halibut_habcovs"
     index_scale = c("raw")
-    out_dir = here::here("", "Objective 3/Temp_Results")
+    out_dir = here::here("", "results/tables")
   }
   
   TmbData<- vast_fit$data_list
@@ -3065,128 +3071,129 @@ vast_plot_cog<- function(vast_fit, all_times, summarize = TRUE, land_sf, xlim, y
   return(plot_out)
 }
 
-# JSDM factors
-vast_fit<- vast_jsdm_fit
-an <- as.numeric
-DF<- vast_fit$data_frame
-
-Year_Set = vast_fit$year_labels
-Years2Include = Year_Set
-spp <- species_keep
-category_names = spp 
-L_list  <- Var_list <-  vector('list', length = 4)
-names(L_list)   <- names(Var_list) <-  c("Omega1", "Epsilon1", "Omega2", "Epsilon2")
-Data = vast_fit$data_list
-ParHat = vast_fit$ParHat
-Report = vast_fit$Report
-for(i in 1:4) {
-  Par_name = names(L_list)[i] 
-  FieldConfig_ind<- switch(Par_name,
-                           "Omega1" = c(1,1),
-                           "Omega2" = c(1,2),
-                           "Epsilon1" = c(2,1),
-                           "Epsilon2" = c(2, 2))
-  if(i %in% c(1,3)) Var_name = paste('Omega','input', substring(Par_name, 6,6), '_sf', sep = '')
-  if(i %in% c(2,4)) Var_name = paste('Epsilon','input', substring(Par_name, 8,8), '_sft', sep = '')
+if(FALSE){
+  # JSDM factors
+  vast_fit<- vast_jsdm_fit
+  an <- as.numeric
+  DF<- vast_fit$data_frame
   
-  L_list[[Par_name]] <- calc_cov(L_z = ParHat[[paste0('L_',tolower(Par_name), '_z')]], n_f = Data$FieldConfig[FieldConfig_ind[1], FieldConfig_ind[2]], n_c = Data$n_c, returntype = 'loadings_matrix')
-  rownames(L_list[[Par_name]]) <- category_names
-  Var_list[[Par_name]]  <- FishStatsUtils::rotate_factors(L_pj = L_list[[Par_name]], Psi = Report[[Var_name]], RotationMethod = 'PCA', testcutoff = 1e-04)
-  rownames(Var_list[[Par_name]]$L_pj_rot) <- category_names
+  Year_Set = vast_fit$year_labels
+  Years2Include = Year_Set
+  spp <- species_keep
+  category_names = spp 
+  L_list  <- Var_list <-  vector('list', length = 4)
+  names(L_list)   <- names(Var_list) <-  c("Omega1", "Epsilon1", "Omega2", "Epsilon2")
+  Data = vast_fit$data_list
+  ParHat = vast_fit$ParHat
+  Report = vast_fit$Report
+  for(i in 1:4) {
+    Par_name = names(L_list)[i] 
+    FieldConfig_ind<- switch(Par_name,
+                             "Omega1" = c(1,1),
+                             "Omega2" = c(1,2),
+                             "Epsilon1" = c(2,1),
+                             "Epsilon2" = c(2, 2))
+    if(i %in% c(1,3)) Var_name = paste('Omega','input', substring(Par_name, 6,6), '_sf', sep = '')
+    if(i %in% c(2,4)) Var_name = paste('Epsilon','input', substring(Par_name, 8,8), '_sft', sep = '')
+    
+    L_list[[Par_name]] <- calc_cov(L_z = ParHat[[paste0('L_',tolower(Par_name), '_z')]], n_f = Data$FieldConfig[FieldConfig_ind[1], FieldConfig_ind[2]], n_c = Data$n_c, returntype = 'loadings_matrix')
+    rownames(L_list[[Par_name]]) <- category_names
+    Var_list[[Par_name]]  <- FishStatsUtils::rotate_factors(L_pj = L_list[[Par_name]], Psi = Report[[Var_name]], RotationMethod = 'PCA', testcutoff = 1e-04)
+    rownames(Var_list[[Par_name]]$L_pj_rot) <- category_names
+  }
+  
+  
+  
+  Omega1_sf   <- apply(Var_list$"Omega1"$Psi_rot, 1:2, FUN = mean)
+  Omega2_sf   <- apply(Var_list$"Omega2"$Psi_rot, 1:2, FUN = mean)
+  Epsilon1_sf <- apply(Var_list$"Epsilon1"$Psi_rot, 1:2, FUN = mean)
+  Epsilon2_sf <- apply(Var_list$"Epsilon2"$Psi_rot, 1:2, FUN = mean)
+  
+  
+  #############
+  ## the Map ##
+  #############
+  DF <- data.frame(X = Centers[,'E_km'], Y = Centers[,'N_km'])
+  xlim = xlim_use
+  ylim = ylim_use
+  
+  ## The map for all areas
+  max_rows<- 457
+  Omega1_sf <- Omega1_sf[1:max_rows,]
+  Omega2_sf <- Omega2_sf[1:max_rows,]
+  Epsilon1_sf <- Epsilon1_sf[1:max_rows,]
+  Epsilon2_sf <- Epsilon2_sf[1:max_rows,]
+  
+  Omega1_sf <- as.data.frame(Omega1_sf)
+  Omega2_sf <- as.data.frame(Omega2_sf)
+  Epsilon1_sf <- as.data.frame(Epsilon1_sf)
+  Epsilon2_sf <- as.data.frame(Epsilon2_sf)
+  
+  Omega1_sf$x2i <- 1:457
+  Omega2_sf$x2i <- 1:457
+  Epsilon1_sf$x2i <- 1:457
+  Epsilon2_sf$x2i <- 1:457
+  
+  DF2 <- MapDetails_List[['PlotDF']]
+  
+  DF3_O1 <- merge(DF2, Omega1_sf)
+  DF3_O2 <- merge(DF2, Omega2_sf)
+  DF3_E1 <- merge(DF2, Epsilon1_sf)
+  DF3_E2 <- merge(DF2, Epsilon2_sf)
+  
+  DF3_O1 <- DF3_O1[DF3_O1$Include==T,]
+  DF3_O2 <- DF3_O2[DF3_O2$Include==T,]
+  DF3_E1 <- DF3_E1[DF3_E1$Include==T,]
+  DF3_E2 <- DF3_E2[DF3_E2$Include==T,]
+  
+  colnames(DF3_O1)[5:13] <- colnames(DF3_O2)[5:13] <- paste("factor",1:9, sep = '_')
+  colnames(DF3_E1)[5:13] <- colnames(DF3_E2)[5:13] <- paste("factor",1:9, sep = '_')
+  
+  DF4_O1 <- melt(DF3_O1, id = c("x2i", "Lat","Lon","Include")); colnames(DF4_O1)[6] <- "Spatial Encounter Prob"
+  DF4_O2 <- melt(DF3_O2, id = c("x2i", "Lat","Lon","Include")); colnames(DF4_O2)[6] <- "Spatial Density"
+  DF4_E1 <- melt(DF3_E1, id = c("x2i", "Lat","Lon","Include")); colnames(DF4_E1)[6] <- "Spatio-temporal Encounter Prob"
+  DF4_E2 <- melt(DF3_E2, id = c("x2i", "Lat","Lon","Include")); colnames(DF4_E2)[6] <- "Spatio-temporal Density"
+  
+  
+  cols <- brewer.pal(8, 'Set1')
+  
+  library(dplyr)
+  
+  #p1 <- ggplot() + geom_point(data = filter(DF4_O1, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
+  #			    geom_point(data = filter(DF4_O1, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) + 
+  #    coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
+  #  scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
+  #  facet_grid(variable ~.)
+  
+  #p2 <- ggplot() + geom_point(data = filter(DF4_O2, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
+  #			    geom_point(data = filter(DF4_O2, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) + 
+  #    coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
+  #  scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
+  #  facet_wrap(~variable, ncol = 1)
+  
+  
+  DF5 <- merge(DF4_O1, DF4_O2)
+  DF5 <- melt(DF5, id = c("x2i", "Lat", "Lon", "Include","variable"))
+  colnames(DF5)[c(5,6)] <- c("factor", "parameter")
+  
+  ggplot() + geom_point(data = filter(DF5, factor %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
+    geom_point(data = filter(DF5, factor %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) + 
+    coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
+    scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
+    facet_grid(factor~parameter)
+  
+  ggsave(file = file.path('..', 'plots', 'SpatialFactorLoadingsOmega1Omega2.png'), width = 8, height = 12)
+  
+  
+  DF6 <- merge(DF4_E1, DF4_E2)
+  DF6 <- melt(DF6, id = c("x2i", "Lat", "Lon", "Include","variable"))
+  colnames(DF6)[c(5,6)] <- c("factor", "parameter")
+  
+  ggplot() + geom_point(data = filter(DF6, factor %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
+    geom_point(data = filter(DF6, factor %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) + 
+    coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
+    scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
+    facet_grid(factor~parameter)
+  
+  ggsave(file = file.path('..', 'plots', 'SpatialFactorLoadingsEpsilon1Epsilon2.png'), width = 8, height = 12)
 }
-
-
-
-Omega1_sf   <- apply(Var_list$"Omega1"$Psi_rot, 1:2, FUN = mean)
-Omega2_sf   <- apply(Var_list$"Omega2"$Psi_rot, 1:2, FUN = mean)
-Epsilon1_sf <- apply(Var_list$"Epsilon1"$Psi_rot, 1:2, FUN = mean)
-Epsilon2_sf <- apply(Var_list$"Epsilon2"$Psi_rot, 1:2, FUN = mean)
-
-
-#############
-## the Map ##
-#############
-DF <- data.frame(X = Centers[,'E_km'], Y = Centers[,'N_km'])
-xlim = xlim_use
-ylim = ylim_use
-
-## The map for all areas
-max_rows<- 457
-Omega1_sf <- Omega1_sf[1:max_rows,]
-Omega2_sf <- Omega2_sf[1:max_rows,]
-Epsilon1_sf <- Epsilon1_sf[1:max_rows,]
-Epsilon2_sf <- Epsilon2_sf[1:max_rows,]
-
-Omega1_sf <- as.data.frame(Omega1_sf)
-Omega2_sf <- as.data.frame(Omega2_sf)
-Epsilon1_sf <- as.data.frame(Epsilon1_sf)
-Epsilon2_sf <- as.data.frame(Epsilon2_sf)
-
-Omega1_sf$x2i <- 1:457
-Omega2_sf$x2i <- 1:457
-Epsilon1_sf$x2i <- 1:457
-Epsilon2_sf$x2i <- 1:457
-
-DF2 <- MapDetails_List[['PlotDF']]
-
-DF3_O1 <- merge(DF2, Omega1_sf)
-DF3_O2 <- merge(DF2, Omega2_sf)
-DF3_E1 <- merge(DF2, Epsilon1_sf)
-DF3_E2 <- merge(DF2, Epsilon2_sf)
-
-DF3_O1 <- DF3_O1[DF3_O1$Include==T,]
-DF3_O2 <- DF3_O2[DF3_O2$Include==T,]
-DF3_E1 <- DF3_E1[DF3_E1$Include==T,]
-DF3_E2 <- DF3_E2[DF3_E2$Include==T,]
-
-colnames(DF3_O1)[5:13] <- colnames(DF3_O2)[5:13] <- paste("factor",1:9, sep = '_')
-colnames(DF3_E1)[5:13] <- colnames(DF3_E2)[5:13] <- paste("factor",1:9, sep = '_')
-
-DF4_O1 <- melt(DF3_O1, id = c("x2i", "Lat","Lon","Include")); colnames(DF4_O1)[6] <- "Spatial Encounter Prob"
-DF4_O2 <- melt(DF3_O2, id = c("x2i", "Lat","Lon","Include")); colnames(DF4_O2)[6] <- "Spatial Density"
-DF4_E1 <- melt(DF3_E1, id = c("x2i", "Lat","Lon","Include")); colnames(DF4_E1)[6] <- "Spatio-temporal Encounter Prob"
-DF4_E2 <- melt(DF3_E2, id = c("x2i", "Lat","Lon","Include")); colnames(DF4_E2)[6] <- "Spatio-temporal Density"
-
-
-cols <- brewer.pal(8, 'Set1')
-
-library(dplyr)
-
-#p1 <- ggplot() + geom_point(data = filter(DF4_O1, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
-#			    geom_point(data = filter(DF4_O1, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) + 
-#    coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
-#  scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
-#  facet_grid(variable ~.)
-
-#p2 <- ggplot() + geom_point(data = filter(DF4_O2, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
-#			    geom_point(data = filter(DF4_O2, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) + 
-#    coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
-#  scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
-#  facet_wrap(~variable, ncol = 1)
-
-
-DF5 <- merge(DF4_O1, DF4_O2)
-DF5 <- melt(DF5, id = c("x2i", "Lat", "Lon", "Include","variable"))
-colnames(DF5)[c(5,6)] <- c("factor", "parameter")
-
-ggplot() + geom_point(data = filter(DF5, factor %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
-  geom_point(data = filter(DF5, factor %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) + 
-  coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
-  scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
-  facet_grid(factor~parameter)
-
-ggsave(file = file.path('..', 'plots', 'SpatialFactorLoadingsOmega1Omega2.png'), width = 8, height = 12)
-
-
-DF6 <- merge(DF4_E1, DF4_E2)
-DF6 <- melt(DF6, id = c("x2i", "Lat", "Lon", "Include","variable"))
-colnames(DF6)[c(5,6)] <- c("factor", "parameter")
-
-ggplot() + geom_point(data = filter(DF6, factor %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
-  geom_point(data = filter(DF6, factor %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) + 
-  coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
-  scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
-  facet_grid(factor~parameter)
-
-ggsave(file = file.path('..', 'plots', 'SpatialFactorLoadingsEpsilon1Epsilon2.png'), width = 8, height = 12)
-

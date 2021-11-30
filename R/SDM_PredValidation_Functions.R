@@ -228,7 +228,7 @@ taylor_diagram_func<- function(dat, obs = "obs", mod = "mod", group = NULL, out.
   # Add in reference point
   plot.all<- plot.gamma +
     geom_point(aes(x = sd.r, y = 0), color = "black", size = 4)
-  ggsave(paste("~/Box/Mills Lab/Projects/SDM-convergence/temp results/Model Comparisons/", "TemplateTaylorDiagram.jpg", sep = ""), plot.all)
+  # ggsave(paste("~/Box/Mills Lab/Projects/SDM-convergence/temp results/Model Comparisons/", "TemplateTaylorDiagram.jpg", sep = ""), plot.all)
   
   # Add in reference points
   mod.td<- mod.stats %>%
