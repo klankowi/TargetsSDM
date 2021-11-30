@@ -29,12 +29,12 @@ source(here::here("R/covariate_functions.R"))
 
 # Model fitting stuffs
 nmfs_species_code<- 301
-nice_category_names<- "American_lobster_STnoRW"
+nice_category_names<- "American_lobster_STnoRW2100"
 depth_cut<- 400
 fit_year_min<- 1985
 fit_year_max<- 2015
 fit_seasons<- c("SPRING", "SUMMER", "FALL")
-pred_years <- 2019
+pred_years <- 2100
 gam_degree<- 3
 hab_formula<- ~ Season + Year_Cov + bs(Depth, degree = 3, intercept = FALSE) + bs(SST_seasonal, degree = 3, intercept = FALSE) + bs(BT_seasonal, degree = 3, intercept = FALSE) + bs(SS_seasonal, degree = 3, intercept = FALSE) + bs(BS_seasonal, degree = 3, intercept = FALSE) # Seasonal
 hab_env_coeffs_n<- length(attributes(terms.formula(hab_formula))$term.labels)-2 # Seasonal
