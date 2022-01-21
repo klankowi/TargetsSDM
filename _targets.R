@@ -28,18 +28,18 @@ source(here::here("R/vast_functions.R"))
 source(here::here("R/covariate_functions.R"))
 
 # Model fitting stuffs
-nmfs_species_code<- 301
-nice_category_names<- "American_lobster_STnoRW2100"
+nmfs_species_code<- 401
+nice_category_names<- "American_lobster_STRW"
 depth_cut<- 400
 fit_year_min<- 1985
 fit_year_max<- 2015
 fit_seasons<- c("SPRING", "SUMMER", "FALL")
-pred_years <- 2100
+pred_years <- 2019
 gam_degree<- 3
 hab_formula<- ~ Season + Year_Cov + bs(Depth, degree = 3, intercept = FALSE) + bs(SST_seasonal, degree = 3, intercept = FALSE) + bs(BT_seasonal, degree = 3, intercept = FALSE) + bs(SS_seasonal, degree = 3, intercept = FALSE) + bs(BS_seasonal, degree = 3, intercept = FALSE) # Seasonal
 hab_env_coeffs_n<- length(attributes(terms.formula(hab_formula))$term.labels)-2 # Seasonal
 field_config<- c("Omega1" = 1, "Epsilon1" = 1, "Omega2" = 1, "Epsilon2" = 1)
-rho_config<- c("Beta1" = 2, "Beta2" = 2, "Epsilon1" = 0, "Epsilon2" = 0)
+rho_config<- c("Beta1" = 2, "Beta2" = 2, "Epsilon1" = 2, "Epsilon2" = 2)
 bias_correct_use<- TRUE
 
 catch_formula<- ~ factor(Survey)
@@ -47,6 +47,10 @@ strata_use<- data.frame("STRATA" = c("DFO", "GoM", "NMFS_and_DFO", "NMFS", "SNE_
 
 # Model output
 res_root<- box_path(box_group = "Mills Lab", "Projects/sdm_workflow/targets_output")
+res_root<- "/Users/aallyn/Library/CloudStorage/Box-Box/Mills Lab/Projects/sdm_workflow/targets_output/"
+
+# Climate scenario
+climate_scenario<- "SSP5_85_mean"
 
 # Dynamic files
 nmfs_raw_mk_dir <- function() {
@@ -436,16 +440,34 @@ list(
   #   command = predict_vast(vast_fitted_sdm = vast_fit, nice_category_names = nice_category_names, predict_variable = "D_i", predict_category = 0, predict_vessel = 0, predict_covariates_df_all = vast_predict_df, out_dir = paste0(res_root, "prediction_df"))
   # ),
   
-  # Get VAST predictions
+  # # Get VAST predictions
+  # tar_target(
+  #   name = density_preds_df,
+  #   command = vast_get_extrap_spatial(vast_fit = vast_fit, spatial_var = "D_gct", nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df"))
+  # ),
+  # 
+  # # Create gif from predictions
+  # tar_target(
+  #   name = plot_preds,
+  #   command = vast_fit_plot_spatial(vast_fit = vast_fit, spatial_var = "D_gct", nice_category_names = nice_category_names, mask = region_shapefile, all_times = levels(vast_seasonal_data$VAST_YEAR_SEASON), plot_times = NULL, land_sf = land_sf, xlim = c(-78.5, -56), ylim = c(35, 48), lab_lat = 36, lab_lon = -60, panel_or_gif = "gif", out_dir = paste0(res_root, "plots_maps"), land_color = "#d9d9d9", panel_cols = NULL, panel_rows = NULL)
+  # ),
+  
+  # Get prediction covariate data for post fit predictions
   tar_target(
-    name = density_preds_df,
-    command = vast_get_extrap_spatial(vast_fit = vast_fit, spatial_var = "D_gct", nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df"))
+    name = vast_pred_df_post_fit,
+    command = vast_post_fit_pred_df(vast_fit = vast_fit, predict_covariates_stack_agg = predict_covariates_stack_agg_out, extra_covariates_stack = static_covariates_stack, covs_rescale = c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal"), rescale_params = rescale_params, depth_cut = depth_cut, mask = region_shapefile, summarize = "seasonal", ensemble_stat = "mean", fit_seasons = fit_seasons, pred_year_min = fit_year_min, fit_year_max = pred_years, pred_year_max = 2100, out_dir = here::here("data/predict"))
   ),
-
-  # Create gif from predictions
+  
+  # Make post fit predictions with "new" covariate data
+  tar_target(
+    name = vast_manual_preds,
+    command = vast_predict_manual(vast_fit = vast_fit, pred_type = "environment_only", obs_or_grid = "grid", pred_label = climate_scenario, set_re_zero = TRUE, new_covariate_data = vast_pred_df_post_fit, new_catchability_data = NULL, nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df"))
+  ),
+  
+  # Plot predictions
   tar_target(
     name = plot_preds,
-    command = vast_fit_plot_spatial(vast_fit = vast_fit, spatial_var = "D_gct", nice_category_names = nice_category_names, mask = region_shapefile, all_times = levels(vast_seasonal_data$VAST_YEAR_SEASON), plot_times = NULL, land_sf = land_sf, xlim = c(-80, -55), ylim = c(35, 50), panel_or_gif = "gif", out_dir = paste0(res_root, "plots_maps"), land_color = "#d9d9d9", panel_cols = NULL, panel_rows = NULL)
+    command = vast_fit_plot_spatial(vast_fit = vast_fit, manual_pred_df = vast_manual_preds, spatial_var = NULL, nice_category_names = nice_category_names, pred_label = climate_scenario, mask = region_shapefile, all_times = levels(vast_seasonal_data$VAST_YEAR_SEASON), plot_times = NULL, land_sf = land_sf, xlim = c(-78.5, -56), ylim = c(35, 48), lab_lat = 36, lab_lon = -60, panel_or_gif = "gif", out_dir = paste0(res_root, "plots_maps"), land_color = "#d9d9d9", panel_cols = NULL, panel_rows = NULL)
   ),
   
   # Plot COG
@@ -464,6 +486,12 @@ list(
   tar_target(
     name = plot_biomass_timeseries,
     command = plot_vast_index_timeseries(index_res_df = biomass_indices, index_scale = "raw", nice_category_names = nice_category_names, nice_xlab = "Year-Season", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = paste0(res_root, "plots_maps"))
+  ),
+  
+  # Biomass index from manual prediction
+  tar_target(
+    name = manual_biomass_indices,
+    command = pred_plot_spatial_summary(pred_df = vast_manual_preds, spatial_areas = index_shapefiles, plot_regions = c("NMFS", "DFO", "NMFS_and_DFO"), index_scale = "raw", year_stop = NULL, nice_category_names = nice_category_names, pred_label = climate_scenario, nice_xlab = "Year-Season", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = paste0(res_root, "plots_maps"))
   )
 )
 
