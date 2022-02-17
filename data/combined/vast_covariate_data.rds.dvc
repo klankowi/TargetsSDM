@@ -1,4 +1,4 @@
 outs:
-- md5: 3e6e949f7c6b49a363e954a88262526c
-  size: 2016349
+- md5: b462547b160fac0d539a5cdcfa20aac0
+  size: 764481
   path: vast_covariate_data.rds

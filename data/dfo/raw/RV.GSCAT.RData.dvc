@@ -1,4 +1,4 @@
 outs:
 - md5: c29d2f99fc312253f1b664d6371ece53
   size: 1661716
-  path: RV.GSCAT.RData
+  path: RV.GSCAT.Rdata
