@@ -28,3 +28,4 @@ docs/.nojekyll
 .gitconfig
 .profile
 
+/Kmeans_knots-400.RData
