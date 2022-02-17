@@ -1,0 +1,4 @@
+outs:
+- md5: e67e6978f223ece394fb0c4229203bc6
+  size: 79031
+  path: Kmeans_knots-400.RData
