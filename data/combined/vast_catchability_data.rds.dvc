@@ -1,4 +1,4 @@
 outs:
-- md5: 4a7abf69cd56bd9739e837f59d5930a1
-  size: 246726
+- md5: ae793b007b3ad1c3347fb93ad8bbafd9
+  size: 223694
   path: vast_catchability_data.rds

@@ -1,9 +1,9 @@
 # R project and user data files
 .Rproj.user
 .Rhistory
-*.RData
+.RData
 .Ruserdata
-*.rds
+.rds
 
 # R files that tend to be large
 *.gri
@@ -14,10 +14,7 @@
 _targets/
 
 # AJA results folders
-/results
-data/nmfs/raw/march_2021_survdat_allcols.csv
-data/supporting/species_table.csv
-data/dfo/raw/DD_20191004.xlsx
+#/results
 
 # For bookdown
 docs/.nojekyll
@@ -31,3 +28,4 @@ docs/.nojekyll
 .gitconfig
 .profile
 
+/Kmeans_knots-400.RData

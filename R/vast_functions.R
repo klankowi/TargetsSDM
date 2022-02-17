@@ -129,7 +129,8 @@ make_vast_predict_df<- function(predict_covariates_stack_agg, extra_covariates_s
   # New implementation...
   pred_covs_out_final<- pred_covs_out_final %>%
     mutate(., #VAST_YEAR_COV = EST_YEAR,
-           VAST_YEAR_COV = ifelse(EST_YEAR > fit_year_max, fit_year_max, EST_YEAR),
+           #VAST_YEAR_COV = ifelse(EST_YEAR > fit_year_max, fit_year_max, EST_YEAR),
+           VAST_YEAR_COV = ifelse(EST_YEAR > pred_year_max, pred_year_max, EST_YEAR),
            VAST_SEASON = case_when(
              SEASON == "Spring" ~ "SPRING",
              SEASON == "Summer" ~ "SUMMER",
@@ -233,7 +234,8 @@ make_vast_seasonal_data<- function(tidy_mod_data, fit_seasons, nmfs_species_code
   # New implementatiom...
   data_temp<- tidy_mod_data %>%
     filter(., NMFS_SVSPP == nmfs_species_code) %>%
-    filter(., EST_YEAR >= fit_year_min & EST_YEAR <= fit_year_max) %>%
+    #filter(., EST_YEAR >= fit_year_min & EST_YEAR <= fit_year_max) %>%
+    filter(., EST_YEAR >= fit_year_min & EST_YEAR <= pred_year_max) %>%
     mutate(., "VAST_SEASON" = case_when(
       SURVEY == "DFO" & SEASON == "SPRING" ~ "SPRING",
       SURVEY == "NMFS" & SEASON == "SPRING" ~ "SPRING",
@@ -246,8 +248,8 @@ make_vast_seasonal_data<- function(tidy_mod_data, fit_seasons, nmfs_species_code
     filter(., VAST_SEASON %in% fit_seasons)
 
   # Set of years and seasons. The DFO spring survey usually occurs before the NOAA NEFSC spring survey, so ordering accordingly. Pred year max or fit year max??
-  all_years<- seq(from = fit_year_min, to = fit_year_max, by = 1)
-  #all_years<- seq(from = fit_year_min, to = pred_years, by = 1)
+  #all_years<- seq(from = fit_year_min, to = fit_year_max, by = 1)
+  all_years<- seq(from = fit_year_min, to = pred_years, by = 1)
   all_seasons<- fit_seasons
   yearseason_set<- expand.grid("SEASON" = all_seasons, "EST_YEAR" = all_years)
   all_yearseason_levels<- apply(yearseason_set[,2:1], MARGIN = 1, FUN = paste, collapse = "_")
@@ -269,7 +271,8 @@ make_vast_seasonal_data<- function(tidy_mod_data, fit_seasons, nmfs_species_code
   data_temp$VAST_SEASON = factor(data_temp$VAST_SEASON, levels = all_seasons)
   
   # VAST year
-  data_temp$VAST_YEAR_COV<- ifelse(data_temp$EST_YEAR > fit_year_max, fit_year_max, data_temp$EST_YEAR)
+  data_temp$VAST_YEAR_COV<- ifelse(data_temp$EST_YEAR > pred_year_max, pred_year_max, data_temp$EST_YEAR)
+  #data_temp$VAST_YEAR_COV<- ifelse(data_temp$EST_YEAR > fit_year_max, fit_year_max, data_temp$EST_YEAR)
   #data_temp$VAST_YEAR_COV<- data_temp$EST_YEAR
   data_temp$PredTF<- FALSE
   
@@ -293,8 +296,8 @@ make_vast_seasonal_data<- function(tidy_mod_data, fit_seasons, nmfs_species_code
 
   # Combine with original dataset
   vast_data_out<- rbind(data_temp, dummy_data)
-  vast_data_out$VAST_YEAR_COV<- factor(vast_data_out$VAST_YEAR_COV, levels = seq(from = fit_year_min, to = fit_year_max, by = 1))
-  #vast_data_out$VAST_YEAR_COV<- factor(vast_data_out$VAST_YEAR_COV, levels = seq(from = fit_year_min, to = pred_years, by = 1))
+  #vast_data_out$VAST_YEAR_COV<- factor(vast_data_out$VAST_YEAR_COV, levels = seq(from = fit_year_min, to = fit_year_max, by = 1))
+  vast_data_out$VAST_YEAR_COV<- factor(vast_data_out$VAST_YEAR_COV, levels = seq(from = fit_year_min, to = pred_years, by = 1))
   
   # If we have additional years that we want to predict to and NOT Fit too, we aren't quite done just yet...
   if(!is.null(pred_df)){
@@ -440,8 +443,7 @@ make_vast_catchability_data<- function(vast_seasonal_data, out_dir){
 #' 
 #' @description A short function to read in a shapefile given a file path
 #'
-#' @param file_path = File path to geospatial vector polygon file with .shp extension, specifying the location and shape of the area of interest.
-#' @param factor_vars = Names of factor columns that should be checked and converted if necessary
+#' @param polyshape_path = File path to geospatial vector polygon or multipolygon file with .shp extension, specifying the location and shape of the area of interest.
 #' 
 #' @return SF poylgon 
 #' 
@@ -466,28 +468,24 @@ read_polyshape<- function(polyshape_path){
 #' 
 #' @description Create a list of with information defining the extrapolation grid and used by subsequent VAST functions, leveraging code here: https://github.com/James-Thorson-NOAA/VAST/wiki/Creating-an-extrapolation-grid. 
 #'
-#' @param region_shapefile = A geospatial vector sf polygon file, specifying the location and shape of the area of of spatial domain
-#' @param index_shapes = A multipolygon geospatial vector sf polygon file, specifying sub regions of interest. Grid locations are assigned to their subregion within the total spatial domain. 
-#' @param strata.limits
-#' @param sample_points
+#' @param region_shapefile = A geospatial vector sf polygon file, specifying the location and shape of the area of of spatial domain.
+#' @param index_shapes = Either NULL or a polygon or multipolygon sf object specifying sub regions of interest. If specified, the function overlays the sf poly/multipolygon with grid locations and assigns each of the grid locations to one (or more) of the polygon areas. The names of these regions should match the names used as `strata.limits`.
 #' @param cell_size = The size of grid in meters (since working in UTM). This will control the resolution of the extrapolation grid.
 #'
 #' @return Tagged list containing extrapolation grid settings needed to fit a VAST model of species occurrence.
 #' 
 #' @export
 
-vast_make_extrap_grid<- function(region_shapefile, index_shapes, strata.limits, cell_size){
+vast_make_extrap_grid<- function(region_shapefile, index_shapes, cell_size){
   
   # For debugging
   if(FALSE){
     tar_load(index_shapefiles)
     index_shapes = index_shapefiles
-    strata.limits = strata_use
     cell_size = 25000
     
     region_shapefile = menh_chull
     index_shapes = menh_regions_out
-    strata.limits = strata_use
     cell_size = 5000
   }
   
@@ -545,11 +543,14 @@ vast_make_extrap_grid<- function(region_shapefile, index_shapes, strata.limits, 
 #' @description Create a list of model settings needed to fit a VAST model for species occurrence, largely copied from VAST::make_settings
 #'
 #' @param extrap_grid = User created extrapolation grid from vast_make_extrap_grid.
+#' @param n_knots = Number of knots to use when geenrating INLA mesh.
 #' @param FieldConfig = A vector defining the number of spatial (Omega) and spatio-temporal (Epsilon) factors to include in the model for each of the linear predictors. For each factor, possible values range from 0 (which effectively turns off a given factor), to the number of categories being modeled. If FieldConfig < number of categories, VAST estimates common factors and then loading matrices. 
 #' @param RhoConfig = A vector defining the temporal structure of intercepts (Beta) and spatio-temporal (Epsilon) variation for each of the linear predictors. See `VAST::make_data` for options.
-#' @param bias.correct = Logical boolean determining if Epsilon bias-correction should be done. 
+#' @param bias.correct = Logical boolean determining if Epsilon bias-correction should be done.
+#' @param knot_method = The method to use in placing the knots, either "grid" or "samples". Grid places knots on a regular grid, while samples places knots corresponding to the intensity of observations. 
+#' @param inla_method - The method to pass to INLA to create the mesh, allowing use of the "barrier" mesh method. 
 #' @param Options = Tagged vector to turn on or off specific options (e.g., SD_site_logdensity, Effective area, etc)
-#' @param strata.limits
+#' @param strata.limits = Dataframe specifying the strata to use. This should align with the `index_shapefile` and ultimately is used by VAST for calculating stratified biomass indices.
 #'
 #' @return Tagged list containing settings needed to fit a VAST model of species occurrence.
 #' 
@@ -597,11 +598,11 @@ vast_make_settings <- function(extrap_grid, n_knots, FieldConfig, RhoConfig, Ove
 #' @description Create a tagged list with VAST spatial information needed
 #'
 #' @param extrap_grid = User created extrapolation grid from vast_make_extrap_grid.
-#' @param vast_settings = A
-#' @param vast_sample_data = A 
-#' @param out_dir = A
+#' @param vast_settings = A tagged list of VAST settings. Could be either returned by `vast_make_settings` or `make_settings`.
+#' @param tidy_mod_data = A tidy model datafame with all the information (tows, habitat covariates, species occurrences) needed to fit a species distribution model. 
+#' @param out_dir = Directory for VAST to look for certain spatial objects (e.g., knots and extrapolation grid .rds files). This is helpful so that new knots aren't generated every run. 
 #'
-#' @return Returns a tagged list with extrapolation and spatial info in different slots
+#' @return Returns a tagged list with extrapolation and spatial info in different slots.
 #' 
 #' @export 
 
@@ -634,14 +635,13 @@ vast_make_spatial_lists<- function(extrap_grid, vast_settings, tidy_mod_data, ou
 ####
 #' @title Reduce VAST prediction dataframe from regular grid to knot locations
 #' 
-#' @description Reduce VAST prediction dataframe from regular grid to knot locations
+#' @description Reduce VAST prediction dataframe to knot locations, where covariates at grid locations are 'snapped' to nearest knot location. As of 2/7/2022 not needed in the workflow.
 #'
-#' @param extrap_grid = User created extrapolation grid from vast_make_extrap_grid.
-#' @param vast_settings = A
-#' @param vast_sample_data = A 
-#' @param out_dir = A
+#' @param vast_predict_df = A dataframe with gridded prediction locations and covariate data information. This is generated by `make_vast_predict_df` in this workflow.
+#' @param vast_spatial_lists = A list with VAST extrapolation info and spatial info as generated by `vast_make_spatial_lists`.
+#' @param out_dir = Output directory to save reduced prediction dataframe.
 #'
-#' @return Returns a tagged list with extrapolation and spatial info in different slots
+#' @return Returns a prediction dataframe with knot locations (instead of original locations) and covariates.
 #' 
 #' @export 
 
@@ -683,7 +683,7 @@ reduce_vast_predict_df<- function(vast_predict_df = vast_predict_df, vast_spatia
 ####
 #' @title Make VAST covariate effect objects
 #' 
-#' @description Create covariate effects for both linear predictors
+#' @description Create covariate effects for both linear predictors. These are passed to the `vast_build_sdm` function.
 #'
 #' @param X1_coveff_vec = A vector specifying the habitat covariate effects for first linear predictor. 
 #' @param X2_coveff_vec = A vector specifying the habitat covariate effects for second linear predictor.
@@ -724,8 +724,8 @@ vast_make_coveff<- function(X1_coveff_vec, X2_coveff_vec, Q1_coveff_vec, Q2_cove
 #' @param settings = A tagged list with the settings for the model, created with `vast_make_settings`.
 #' @param extrap_grid = An extrapolation grid, created with `vast_make_extrap_grid`.
 #' @param Method = A character string specifying which Method to use when making the mesh.
-#' @param sample_dat = A data frame with the biomass sample data for each species at each tow.
-#' @param covariate_dat = A data frame with the habitat covariate data for each tow.
+#' @param sample_data = A data frame with the biomass sample data for each species at each tow.
+#' @param covariate_data = A data frame with the habitat covariate data for each tow.
 #' @param X1_formula = A formula for the habitat covariates and first linear predictor.
 #' @param X2_formula = A formula for the habitat covariates and second linear predictor.
 #' @param X_contrasts = A tagged list specifying the contrasts to use for factor covariates in the model.
@@ -733,7 +733,8 @@ vast_make_coveff<- function(X1_coveff_vec, X2_coveff_vec, Q1_coveff_vec, Q2_cove
 #' @param catchability_data = A data frame with the catchability data for every sample
 #' @param Q1_formula = A formula for the catchability covariates and first linear predictor.
 #' @param Q2_formula = A formula for the catchability covariates and second linear predictor.
-#' @param index_shapefiles = A sf object with rows for each of the regions of interest
+#' @param index_shapes = An sf polygon or multipolygon object with rows for each of the regions of interest.
+#' @param spatial_info_dir = A directory holding the spatial information, including knots and extrapolation locations.
 #'
 #' @return A VAST `fit_model` object, with the inputs and built TMB object components.
 #'
@@ -836,8 +837,9 @@ vast_build_sdm <- function(settings, extrap_grid, sample_data, covariate_data, X
 #' @description Make adjustments to VAST SDM and the model returned in `vast_build_sdm`. This can either be the exact same as the one built using `vast_build_sdm`, or it can update that model with adjustments provided in a tagged list. 
 #'
 #' @param vast_build = A VAST `fit_model` object.
+#' @param index_shapes = An sf polygon or multipolygon object with rows for each of the regions of interest.
+#' @param spatial_info_dir = A directory holding the spatial information, including knots and extrapolation locations.
 #' @param adjustments = Either NULL (default) or a tagged list identifying adjustments that should be made to the vast_build `fit_model` object. If NULL, the identical model defined by the `vast_build` is run and fitted.
-#' @param index_shapefiles = A sf object with rows for each of the regions of interest
 #'
 #' @return A VAST fit_model object, with the inputs and built TMB object components.
 #' 
@@ -925,9 +927,10 @@ vast_make_adjustments <- function(vast_build, index_shapes, spatial_info_dir, ad
 #' @description Fit VAST species distribution model
 #'
 #' @param vast_build_adjust = A VAST `fit_model` object.
-#' @param nice_category_names = 
-#' @param index_shapefiles = A sf object with rows for each of the regions of interest
-#' @param out_dir
+#' @param nice_category_names = A character string to define species/model run and used in naming the fitted files.
+#' @param index_shapes = An sf polygon or multipolygon object with rows for each of the regions of interest.
+#' @param spatial_info_dir = A directory holding the spatial information, including knots and extrapolation locations.
+#' @param out_dir = Output directory to save fitted model object.
 #'
 #' @return A VAST fit_model object, with the inputs and and outputs, including parameter estimates, extrapolation gid info, spatial list info, data info, and TMB info.
 #'
@@ -965,31 +968,39 @@ vast_fit_sdm <- function(vast_build_adjust, nice_category_names, index_shapes, s
 #' @description This function makes predictions from a fitted VAST SDM to new locations using VAST::predict.fit_model. Importantly, to use this feature for new times, at least one location for each time of interest needs to be included during the model fitting process. This dummy observation should have a PredTF value of 1 so that the observation is only used in the predicted probability and NOT estimating the likelihood.
 #'
 #' @param vast_fitted_sdm = A fitted VAST SDM object, as returned with `vast_fit_sdm`
-#' @param nice_category_names = A 
-#' @param predict_variable = Which variable should be predicted, default is density (D_i)
-#' @param predict_category = Which category (species/age/size) should be predicted, default is 0
-#' @param predict_vessel = Which sampling category should be predicted, default is 0
-#' @param predict_covariates_df_all = A long data frame with all of the prediction covariates
-#' @param memory_save = Logical. If TRUE, then predictions are only made to knots as defined within the vast_fitted_sdm object. This is done by finding the prediction locations that are nearest neighbors to each knot. If FALSE, then predictions are made to each of the locations in the predict_covariates_df_all.  
-#' @param out_dir = Output directory to save...
+#' @param nice_category_names = A character string to define species/model run and used in naming the output prediction file.
+#' @param predict_variable = Which variable should be predicted, default is density (D_i).
+#' @param predict_category = Which category (species/age/size) should be predicted, default is 0.
+#' @param predict_vessel = Which sampling category should be predicted, default is 0.
+#' @param predict_covariates_df_all = A long data frame with all of the prediction covariates and arranged with lat/long/time columns. 
+#' @param cov_names = A character string vector with covariate names used in the model fitting. 
+#' @param coord_names = A character string vector with the names of the longitude and latitude location column of the `predict_covariates_df_all` dataframe, default is c("Lon", "Lat").
+#' @param time_col = A character string with the name of the date of the `predict_covariates_df_all` dataframe, default is "DATE".
+#' @param out_dir = Output directory to save .rds dataframe with VAST model predictions for each of the lat/long/times in `predict_covariates_df_all`.
 #' 
 #' @return
 #'
 #' @export
 
-predict_vast<- function(vast_fitted_sdm, nice_category_names, predict_variable = "D_i", predict_category = 0, predict_vessel = 0, predict_covariates_df_all, cov_names, time_col, out_dir){
+predict_vast<- function(vast_fitted_sdm, nice_category_names, predict_variable = "D_i", predict_category = 0, predict_vessel = 0, predict_covariates_df_all, cov_names, coord_names = c("Lon", "Lat"), time_col = "DATE", out_dir){
 
   # For debugging
   if(FALSE){
     # Targets
     tar_load(vast_fit)
+    vast_fit<- readRDS("~/Box/Mills Lab/Projects/sdm_workflow/targets_output/mod_fits/American_lobster_STnoRW_fitted_vast.rds")
     vast_fitted_sdm = vast_fit
-    nmfs_species_code = 101
-    predict_variable = "Index_gctl"
+    nice_category_names = nice_category_names
+    nice_category_names = "American_lobster"
+    predict_variable = "D_i"
     predict_category = 0
     predict_vessel = 0
-    tar_load(vast_predict_df)
-    predict_covariates_df_all = vast_predict_df
+    tar_load(vast_pred_df_post_fit)
+    predict_covariates_df_all = vast_pred_df_post_fit
+    predict_covariates_df_all<- readRDS(paste(out_dir, "/VAST_post_fit_pred_df_", summarize, "_", ensemble_stat, ".rds", sep = "" ))
+    predict_covariates_df_all<- pred_covs_out_final
+    coord_names = c("DECDEG_BEGLON", "DECDEG_BEGLAT")
+    cov_names<- c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal")
     
     # Basic example...
     vast_fitted_sdm = readRDS(here::here("", "results/mod_fits/1011_fitted_vast.rds"))
@@ -1000,35 +1011,71 @@ predict_vast<- function(vast_fitted_sdm, nice_category_names, predict_variable =
     predict_covariates_df_all<- pred_df
     time_col = "Year"
     cov_names = c("Depth", "SST_seasonal", "BT_seasonal")
+    
   }
   
-  #### Not the biggest fan of this, but for now, building in a work around to resolve some of the memory issues that we were running into by supplying a 0.25 degree grid and trying to predict/project for each season-year from 1980-2100. To overcome this issue, going to try to just make the projections to knots and do the smoothing later.
-  # First, need to get the knot locations
-  knot_locs<- data.frame(vast_fitted_sdm$spatial_list$latlon_g) %>%
-    st_as_sf(., coords = c("Lon", "Lat"), remove = FALSE) %>%
-    mutate(., "Pt_Id" = 1:nrow(.))
+  # Rename coordinates
+  predict_covariates_df_all<- predict_covariates_df_all %>%
+    rename_at(vars(all_of(coord_names)), ~ c("Lon", "Lat"))
   
-  # Nearest knot to each point?
-  pred_sf<- predict_covariates_df_all %>%
-    st_as_sf(., coords = c("Lon", "Lat"), remove = FALSE)
+  # #### Not the biggest fan of this, but for now, building in a work around to resolve some of the memory issues that we were running into by supplying a 0.25 degree grid and trying to predict/project for each season-year from 1980-2100. To overcome this issue, going to try to just make the projections to knots and do the smoothing later.
+  # # First, need to get the knot locations
+  # knot_locs<- data.frame(vast_fitted_sdm$spatial_list$latlon_g) %>%
+  #   st_as_sf(., coords = c("Lon", "Lat"), remove = FALSE) %>%
+  #   mutate(., "Pt_Id" = 1:nrow(.))
+  # 
+  # # Nearest knot to each point?
+  # pred_sf<- predict_covariates_df_all %>%
+  #   st_as_sf(., coords = c("Lon", "Lat"), remove = FALSE)
+  # 
+  # pred_sf<- pred_sf %>%
+  #   mutate(., "Nearest_Knot" = st_nearest_feature(., knot_locs))
+  # 
+  # # Average the points...
+  # pred_df_knots<- pred_sf %>%
+  #   st_drop_geometry()
   
-  pred_sf<- pred_sf %>%
-    mutate(., "Nearest_Knot" = st_nearest_feature(., knot_locs))
-  
-  # Average the points...
-  pred_df_knots<- pred_sf %>%
-    st_drop_geometry()
-  group_by_vec<- c({{time_col}}, "Nearest_Knot")
-  pred_df_knots<- pred_df_knots %>%
-    group_by_at(.vars = group_by_vec) %>%
-    summarize_at(all_of(cov_names), mean, na.rm = TRUE) %>%
-    left_join(., st_drop_geometry(knot_locs), by = c("Nearest_Knot" = "Pt_Id")) %>%
-    ungroup()
+  if(time_col == "DATE"){
+    # pred_df_knots$DATE<- as.Date(pred_df_knots$DATE)
+    # group_by_vec<- c({{time_col}}, "Nearest_Knot")
+    # pred_df_knots_summ<- pred_df_knots %>%
+    #   group_by_at(.vars = group_by_vec) %>%
+    #   summarize_at(all_of(c(cov_names, "VAST_YEAR_COV")), mean, na.rm = TRUE) %>%
+    #   left_join(., st_drop_geometry(knot_locs), by = c("Nearest_Knot" = "Pt_Id")) %>%
+    #   ungroup()
+    pred_df_knots_summ<- predict_covariates_df_all
+    pred_df_knots_summ$DATE<- as.Date(pred_df_knots_summ$DATE)
+    pred_df_knots_summ$Season<-  factor(case_when(format(pred_df_knots_summ$DATE, "%m-%d") == "12-16" ~ "WINTER",
+                                                format(pred_df_knots_summ$DATE, "%m-%d") == "03-16" ~ "SPRING",
+                                                format(pred_df_knots_summ$DATE, "%m-%d") == "07-16" ~ "SUMMER" ,
+                                                format(pred_df_knots_summ$DATE, "%m-%d") == "09-16" ~ "FALL"),
+                                        levels = levels(vast_fit$covariate_data$Season))
+    pred_df_knots_summ<- pred_df_knots_summ %>%
+      rename(., "Year_Cov" = "VAST_YEAR_COV")
+    pred_df_knots_summ$Year_Cov<- factor(pred_df_knots_summ$Year_Cov)
+    pred_df_knots_summ$Year<- as.numeric(as.character(pred_df_knots_summ$Year_Cov))
+  } else{
+    # group_by_vec<- c({{time_col}}, "Nearest_Knot")
+    # pred_df_knots_summ<- pred_df_knots %>%
+    #   group_by_at(.vars = group_by_vec) %>%
+    #   summarize_at(all_of(cov_names), mean, na.rm = TRUE) %>%
+    #   left_join(., st_drop_geometry(knot_locs), by = c("Nearest_Knot" = "Pt_Id")) %>%
+    #   ungroup()
+    # 
+    pred_df_knots_summ<- predict_covariates_df_all
+  }
   
   # Collecting necessary bits from the prediction covariates -- lat, lon, time
-  pred_lats<- pred_df_knots$Lat
-  pred_lons<- pred_df_knots$Lon
-  pred_times<- as.numeric(unlist(pred_df_knots[{{time_col}}]))
+  pred_lats<- pred_df_knots_summ$Lat
+  pred_lons<- pred_df_knots_summ$Lon
+  if(time_col == "DATE"){
+    # Need the "VAST" time..
+    # pred_times<- pred_df_knots$VAST_YEAR_SEASON[match(pred_df_knots_summ$Nearest_Knot, pred_df_knots$Nearest_Knot)]
+    pred_times<- pred_df_knots_summ$VAST_YEAR_SEASON
+  } else {
+    #pred_times<- as.numeric(unlist(pred_df_knots_summ[{{time_col}}]))
+    pred_times<- as.numeric(unlist(pred_df_knots_summ[{{time_col}}]))
+  }
   
   # Catch stuff...
   pred_sampled_areas<- rep(1, length(pred_lats))
@@ -1036,13 +1083,14 @@ predict_vast<- function(vast_fitted_sdm, nice_category_names, predict_variable =
   pred_vessel<- rep(predict_vessel, length(pred_lats))
   
   # Renaming predict_covariates_df_all to match vast_fit_covariate_data
-  pred_cov_dat_name_order<- which(names(pred_df_knots) %in% names(vast_fitted_sdm$covariate_data))
-  pred_cov_dat_use<- pred_df_knots[,pred_cov_dat_name_order]
-  
+  cov_dat_name_order<- match(names(vast_fitted_sdm$covariate_data), names(pred_df_knots_summ))
+  cov_dat_name_order<- cov_dat_name_order[!is.na(cov_dat_name_order)]
+  pred_cov_dat_use<- pred_df_knots_summ[,cov_dat_name_order]
+
   # Catchability data?
   if(!is.null(vast_fitted_sdm$catchability_data)){
     pred_catch_dat_use<- pred_cov_dat_use %>%
-      dplyr::select(., c(Year, Year_Cov, Season, Lat, Lon, Survey)
+      dplyr::select(., c(Year, Year_Cov, Season, Lat, Lon)
       )
     pred_catch_dat_use$Survey<- rep("NMFS", nrow(pred_catch_dat_use))
     pred_catch_dat_use$Survey<- factor(pred_catch_dat_use$Survey, levels = c("NMFS", "DFO", "DUMMY"))
@@ -1054,129 +1102,110 @@ predict_vast<- function(vast_fitted_sdm, nice_category_names, predict_variable =
   preds_out<- predict.fit_model_aja(x = vast_fitted_sdm, what = predict_variable, Lat_i = pred_lats, Lon_i = pred_lons, t_i = pred_times, a_i = pred_sampled_areas, c_iz = pred_category, NULL, new_covariate_data = pred_cov_dat_use, new_catchability_data = pred_catch_dat_use, do_checks = FALSE)
   
   # Get everything as a dataframe to make plotting easier...
-  pred_df_out<- data.frame("Lat" = pred_lats, "Lon" = pred_lons, "Time" = pred_cov_dat_use[,{{time_col}}], "Pred" = preds_out)
+  if(time_col == "DATE"){
+    pred_df_out<- data.frame("Lat" = pred_lats, "Lon" = pred_lons, "Time" = as.Date(predict_covariates_df_all[,{{time_col}}]), "Pred" = preds_out)
+  } else {
+    pred_df_out<- data.frame("Lat" = pred_lats, "Lon" = pred_lons, "Time" = predict_covariates_df_all[,{{time_col}}], "Pred" = preds_out)
+  }
+ 
   
   # Save and return it
   saveRDS(pred_df_out, file = paste(out_dir, "/pred_", predict_variable, "_", nice_category_names, ".rds", sep = "" ))
   return(pred_df_out)
 }
 
-#' @title Prediction spatial summary 
+#' @title Plot prediction spatial summaries
 #' 
-#' @description Calculates average "availability" of fish biomass from SDM predictions within spatial area of interest
+#' @description This function plots the total biomass from SDM predictions within spatial area of interest across time. 
 #'
-#' @param pred_df = A dataframe with Lat, Lon, Time and Pred columns
-#' @param spatial_areas = 
-#' @return What does this function return?
+#' @param pred_df = A dataframe with Lat, Lon, Time and Pred columns.
+#' @param spatial_areas = An sf polygon or multipolygon object with rows for each of the spatial areas to calculate average biomass within.
+#' @param plot_regions = A character string vector with the names of spatial areas to plot. Needs to be a matching set of areas in the `spatial_areas` object.
+#' @param index_scale = A character string of either "raw" or "log" defining the biomass value scale to calculate/plot. In general, log scale is going to be easier to see patterns across different areas. 
+#' @param year_stop = A year or NULL to plot all years.
+#' @param nice_category_names = A character string to define species/model run and used in naming the output prediction file.
+#' @param pred_label = A character string to add to the output file plot identifying which prediction data were used to make predictions and calculate total biomass values. 
+#' @param nice_xlab = A character string for x axis of the plot, default is "Year-Season".
+#' @param nice_ylab = A character string for y axis of the plot, default is "Biomass index (metrix tons)"
+#' @param paneling = A place holder for eventually creating "panel" plots, default is "none" and has all of the time series plotted on on plot. 
+#' @param color_pal = A color pallete character string to use for each of the plot_region time series.
+#' @param out_dir = Output directory to save biomass time series plot.
+#'  
+#' @return A ggplot object with biomass time series for each of the plot_regions.
 #'
 #' @export
 
-pred_spatial_summary<- function(pred_df, spatial_areas){
+pred_plot_spatial_summary<- function(pred_df, spatial_areas, plot_regions = c("NMFS", "DFO", "NMFS_and_DFO"), index_scale = "raw", year_stop = NULL, nice_category_names = nice_category_names, pred_label, nice_xlab = "Year-Season", nice_ylab= "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = paste0(res_root, "plots_maps")){
   if(FALSE){
-    tar_load(vast_fit)
-    template = raster("~/GitHub/sdm_workflow/scratch/aja/TargetsSDM/data/supporting/HighResTemplate.grd")
-    tar_load(vast_seasonal_data)
-    all_times = as.character(levels(vast_seasonal_data$YEAR_SEASON))
-    plot_times = NULL
-    tar_load(land_sf)
-    tar_load(shapefile)
-    mask = shapefile
-    land_color = "#d9d9d9"
-    res_data_path = "~/Box/RES_Data/"
-    xlim = c(-85, -55)
-    ylim = c(30, 50)
-    panel_or_gif = "gif"
-    panel_cols = NULL
-    panel_rows = NULL
+    nice_category_names = "Atlantic_cod"
+    pred_label = "SSP5_85_mean"
+    pred_df = read.csv(paste(out_dir, "/", nice_category_names, "_", pred_label, "_projections.csv", sep = ""))
+    tar_load(index_shapefiles)
+    spatial_areas = index_shapefiles
+    plot_regions = c("NMFS", "DFO", "NMFS_and_DFO")
+    index_scale = "log"
+    year_stop = NULL
+    nice_category_names = nice_category_names
+    nice_xlab = "Year-Season"
+    nice_ylab= "Log biomass index (metric tons)"
+    paneling = "none"
+    color_pal = NULL
+    out_dir = paste0(res_root, "plots_maps")
   }
   
-  # Plotting at spatial knots...
-  # Getting prediction array
-  pred_array<- log(vast_fit$Report$D_gct+1)
+  # Convert prediction df to spatial dataframe...
+  pred_sp<- st_as_sf(pred_df, coords = c("Lon", "Lat"), crs = 4326, remove = FALSE)
   
-  # Getting time info
-  if(!is.null(plot_times)){
-    plot_times<- all_times[which(all_times) %in% plot_times]
-  } else {
-    plot_times<- all_times
-  }
+  # Join up with the spatial areas
+  pred_sp<- pred_sp %>%
+    st_join(., spatial_areas) %>%
+    st_drop_geometry()
   
-  # Getting spatial information
-  spat_data<- vast_fit$extrapolation_list
-  loc_g<- spat_data$Data_Extrap[which(spat_data$Data_Extrap[, "Include"] > 0), c("Lon", "Lat")]
-  CRS_orig<- sp::CRS("+proj=longlat")
-  CRS_proj<- sp::CRS(spat_data$projargs)
-  land_sf<- st_crop(land_sf, xmin = xlim[1], ymin = ylim[1], xmax = xlim[2], ymax = ylim[2])
+  # Summaries
+  index_res_df<- pred_sp %>%
+    mutate(., "Year" = format(as.Date(Real_Date), "%Y")) %>%
+    group_by(., Year, Region) %>%
+    summarize_at(., vars(Dens), c(sum), na.rm = TRUE) %>%
+    mutate(., "Date" = as.Date(paste(Year, "06-15", sep = "-")))
   
-  # Looping through...
-  rasts_out<- vector("list", dim(pred_array)[3])
-  rasts_range<- pred_array
-  rast_lims<- c(round(min(rasts_range)-0.000001, 2), round(max(rasts_range) + 0.0000001, 2))
-  
-  if(dim(pred_array)[3] == 1){
-    df<- data.frame(loc_g, z = pred_array[,1,])
-    points_ll = st_as_sf(data_df, coords = c("Lon", "Lat"), crs = CRS_orig)
-    points_proj = points_ll %>%
-      st_transform(., crs = CRS_proj)
-    points_bbox<- st_bbox(points_proj)
-    raster_proj<- st_rasterize(points_proj)
-    raster_proj<- resample(raster_proj, raster(template))
+  index_res_df_plot<- index_res_df %>%
+    filter(.,  Region %in% plot_regions)
     
-    plot_out<- ggplot() +
-      geom_stars(data = raster_proj, aes(x = x, y = y, fill = z)) +
-      scale_fill_viridis_c(name = "Density", option = "viridis", na.value = "transparent", limits = rast_lims) +
-      geom_sf(data = land_sf_proj, fill = land_color, lwd = 0.2) +
-      coord_sf(xlim = points_bbox[c(1,3)], ylim = points_bbox[c(2,4)], expand = FALSE, datum = sf::st_crs(CRS_proj)) 
-    theme(panel.background = element_rect(fill = "white"), panel.border = element_rect(fill = NA), axis.text.x=element_blank(), axis.text.y=element_blank(), axis.ticks=element_blank(), axis.title = element_blank(), plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05))
-    
-    ggsave(filename = paste(out_dir, file_name, ".png", sep = ""), plot_out, width = 11, height = 8, units = "in")
-  } else {
-    
-    for (tI in 1:dim(pred_array)[3]) {
-      data_df<- data.frame(loc_g, z = pred_array[,1,tI])
-      
-      # Interpolation
-      pred_df<- na.omit(data.frame("x" = data_df$Lon, "y" = data_df$Lat, "layer" = data_df$z))
-      pred_df_interp<- interp(pred_df[,1], pred_df[,2], pred_df[,3], duplicate = "mean", extrap = TRUE,
-                              xo=seq(-87.99457, -57.4307, length = 115),
-                              yo=seq(22.27352, 48.11657, length = 133))
-      pred_df_interp_final<- data.frame(expand.grid(x = pred_df_interp$x, y = pred_df_interp$y), z = c(round(pred_df_interp$z, 2)))
-      pred_sp<- st_as_sf(pred_df_interp_final, coords = c("x", "y"), crs = CRS_orig)
-      
-      pred_df_temp<- pred_sp[which(st_intersects(pred_sp, mask, sparse = FALSE) == TRUE),]
-      coords_keep<- as.data.frame(st_coordinates(pred_df_temp))
-      row.names(coords_keep)<- NULL
-      pred_df_use<- data.frame(cbind(coords_keep, "z" = as.numeric(pred_df_temp$z)))
-      names(pred_df_use)<- c("x", "y", "z")
-      
-      # raster_proj<- raster::rasterize(as_Spatial(points_ll), template, field = "z", fun = mean)
-      # raster_proj<- as.data.frame(raster_proj, xy = TRUE)
-      # 
-      time_plot_use<- plot_times[tI]
-      
-      rasts_out[[tI]]<- ggplot() +
-        geom_tile(data = pred_df_use, aes(x = x, y = y, fill = z)) +
-        scale_fill_viridis_c(name = "Log (density+1)", option = "viridis", na.value = "transparent", limits = rast_lims) +
-        annotate("text", x = -65, y = 37.5, label = time_plot_use) +
-        geom_sf(data = land_sf, fill = land_color, lwd = 0.2, na.rm = TRUE) +
-        coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
-        theme(panel.background = element_rect(fill = "white"), panel.border = element_rect(fill = NA), axis.text.x=element_blank(), axis.text.y=element_blank(), axis.ticks=element_blank(), axis.title = element_blank(), plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt"))
-    }
-    if(panel_or_gif == "panel"){
-      # Panel plot
-      all_plot<- wrap_plots(rasts_out, ncol = panel_cols, nrow = panel_rows, guides = "collect", theme(plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt")))
-      ggsave(filename = paste(working_dir, file_name, ".png", sep = ""), all.plot, width = 11, height = 8, units = "in")
+  if(paneling == "none"){
+    if(!is.null(color_pal)){
+      colors_use<- color_pal
     } else {
-      # Make a gif
-      plot_loop_func<- function(plot_list){
-        for (i in seq_along(plot_list)) {
-          plot_use<- plot_list[[i]]
-          print(plot_use)
-        }
-      }
-      invisible(save_gif(plot_loop_func(rasts_out), paste0(out_dir, nmfs_species_code, "_LogDensity.gif"), delay = 0.75, progress = FALSE))
+      color_pal<- c('#66c2a5','#fc8d62','#8da0cb','#e78ac3','#a6d854')
+      colors_use<- color_pal[1:length(plot_regions)]
     }
+    
+    # Filter based on years to plot
+    if(!is.null(year_stop)){
+      index_res_df_plot<- index_res_df_plot %>%
+        filter(., Year < year_stop)
+    }
+    
+    # Date axis
+    date_breaks<- seq.Date(from = as.Date(paste(min(index_res_df_plot$Year), "06-15", sep = "-")), to = as.Date(paste(max(index_res_df_plot$Year), "06-15", sep = "-")), by = "5 years")
+    plot_out<- ggplot() +
+      # geom_errorbar(data = index_res_df, aes(x = Date, ymin = (Index_Estimate - Index_SD), ymax = (Index_Estimate + Index_SD), color = Index_Region, group = Index_Region), alpha = 0.65) + 
+      geom_point(data = index_res_df_plot, aes(x = Date, y = Dens, color = Region)) +
+      geom_line(data = index_res_df_plot, aes(x = Date, y = Dens, color = Region)) +
+      scale_color_manual(values = colors_use) +
+      scale_x_date(breaks = date_breaks, date_labels = "%Y") +
+      xlab({{nice_xlab}}) +
+      ylab({{nice_ylab}}) +
+      ggtitle({{nice_category_names}}) + 
+      theme_bw() +
+      theme(legend.title = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) 
   }
+  
+  # Save and return the plot
+  ggsave(plot_out, file = paste(out_dir, "/Post_Fit_Biomass_Index_", index_scale, "_", nice_category_names, "_", pred_label, ".jpg", sep = ""))
+  write.csv(index_res_df, file = paste(gsub("plots_maps", "tables", out_dir), "/Post_Fit_Biomass_Index_", index_scale, "_", nice_category_names, "_", pred_label, ".csv", sep = ""))
+  return(plot_out)
+ 
+
 }
 
 #' @title Plot VAST model predicted density surfaces
@@ -1184,7 +1213,7 @@ pred_spatial_summary<- function(pred_df, spatial_areas){
 #' @description Creates either a panel plot or a gif of VAST model predicted density surfaces
 #'
 #' @param vast_fit = A VAST `fit_model` object.
-#' @param nice_category_names = A
+#' @param nice_category_names = A character string to define species/model run and used in naming the output prediction file.
 #' @param all_times = A vector of all of the unique time steps available from the VAST fitted model
 #' @param plot_times = Either NULL to make a plot for each time in `all_times` or a vector of all of the times to plot, which must be a subset of `all_times`
 #' @param land_sf = Land sf object
@@ -1325,7 +1354,7 @@ vast_fit_plot_density<- function(vast_fit, nice_category_names, mask, all_times 
 #' @description Creates either a panel plot or a gif of predicted density surfaces from a data frame that has location and time information
 #'
 #' @param pred_df = A dataframe with Lat, Lon, Time and Pred columns
-#' @param nice_category_names = A
+#' @param nice_category_names = A character string to define species/model run and used in naming the output prediction file.
 #' @param mask = Land mask
 #' @param plot_times = Either NULL to make a plot for each time in `pred_df$Time` or a vector of all of the times to plot, which must be a subset of `pred_df$Time`
 #' @param land_sf = Land sf object
@@ -1426,7 +1455,181 @@ vast_df_plot_density<- function(pred_df, nice_category_names, mask, all_times = 
       }
       invisible(save_gif(plot_loop_func(rasts_out), paste0(out_dir, "/", nice_category_names, "_LogDensity.gif"), delay = 0.75, progress = FALSE))
     }
+}
+
+vast_post_fit_pred_df<- function(predict_covariates_stack_agg, extra_covariates_stack, covs_rescale = c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal"), rescale_params, depth_cut, mask, summarize, ensemble_stat, vast_fit, fit_seasons, pred_year_min = fit_year_min, fit_year_max = pred_years, pred_year_max, out_dir){
+  
+  # For debugging
+  if(FALSE){
+    tar_load(predict_covariates_stack_agg_out)
+    predict_covariates_stack_agg<- predict_covariates_stack_agg_out
+    tar_load(static_covariates_stack)
+    extra_covariates_stack = static_covariates_stack
+    tar_load(rescale_params)
+    tar_load(region_shapefile)
+    mask = region_shapefile
+    summarize<- "seasonal"
+    ensemble_stat<- "mean"
+    pred_year_min = 1985
+    fit_year_max = 2019
+    pred_year_max = 2100
+    fit_seasons = fit_seasons
+    out_dir = here::here("scratch/aja/TargetsSDM/data/predict")
+    covs_rescale = c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal")
+    vast_fit<- readRDS("/Users/aallyn/Library/CloudStorage/Box-Box/Mills Lab/Projects/sdm_workflow/targets_output/mod_fits/American_lobster_STnoRW_fitted_vast.rds")
   }
+  
+  # Get raster stack covariate files
+  rast_files_load<- list.files(predict_covariates_stack_agg, pattern = paste0(summarize, "_", ensemble_stat, ".grd$"), full.names = TRUE)
+  
+  # Get variable names
+  cov_names_full<- list.files(predict_covariates_stack_agg, pattern = paste0(summarize, "_", ensemble_stat, ".grd$"), full.names = FALSE)
+  predict_covs_names<- gsub(paste("_", ensemble_stat, ".grd$", sep = ""), "", gsub("predict_stack_", "", cov_names_full))
+  
+  # Get the grid locations...
+  #####
+  ## Start here -- extrap grid in the vast_fit is going to have grid locations duplicated for the different regions. We really just want to get a single estimate for each location and each time. Somehow, need to match the spatial subset up WITH vast_fit$spatial_list$A_gs[i] and [j], as that is going to have the information we need for omega and epsilon....would an ID column on the Data_Extrap match up with the [i] index of the grids??
+  #####
+  dat_extrap<- vast_fit$extrapolation_list$Data_Extrap %>%
+    mutate(., "Extrap_ID" = paste0("GRID_", seq(from = 1, to = nrow(.))))
+  extrap_unique_ids<- dat_extrap[which(dat_extrap$STRATA == "NMFS_and_DFO"), ]
+  
+  # Coordinates for these unique IDs
+  pred_coords<- data.frame("Lon" = extrap_unique_ids$Lon, "Lat" = extrap_unique_ids$Lat, "Extrap_ID" = extrap_unique_ids$Extrap_ID)
+  preds_sf<- pred_coords %>%
+    st_as_sf(., coords = c("Lon", "Lat"), crs = 4326, remove = FALSE)
+ 
+  # Looping through prediction stack time steps 
+  for(i in 1:nlayers(raster::stack(rast_files_load[1]))){
+    # Get the time index
+    time_ind<- i
+    
+    # Load corresponding raster layers matching the time index 
+    pred_covs_stack_temp<- rotate(raster::stack(raster::stack(rast_files_load[1])[[time_ind]], raster::stack(rast_files_load[2])[[time_ind]], raster::stack(rast_files_load[3])[[time_ind]], raster::stack(rast_files_load[4])[[time_ind]]))
+    
+    # Mask out values outside area of interest
+    pred_covs_stack_temp<- raster::mask(pred_covs_stack_temp, mask = mask)
+    
+    # Extract values at the knot locations
+    pred_covs_df_temp<- data.frame("DECDEG_BEGLON" = pred_coords$Lon, "DECDEG_BEGLAT" = pred_coords$Lat, "Extrap_ID" = pred_coords$Extrap_ID, raster::extract(pred_covs_stack_temp, preds_sf, method = "bilinear")) %>%
+      drop_na()
+    
+    # Some processing to keep observations within our area of interest and get things in a "tidy-er" prediction dataframe
+    time_name<- sub('.[^.]*$', '', names(pred_covs_stack_temp))
+    colnames(pred_covs_df_temp)[4:ncol(pred_covs_df_temp)]<- paste(time_name, predict_covs_names, sep = "_")
+    colnames(pred_covs_df_temp)[4:ncol(pred_covs_df_temp)]<- gsub("X", "", gsub("[.]", "_", colnames(pred_covs_df_temp)[4:ncol(pred_covs_df_temp)]))
+
+    pred_covs_df_out_temp<- pred_covs_df_temp %>%
+      pivot_longer(., -c(DECDEG_BEGLON, DECDEG_BEGLAT, Extrap_ID), names_to = c("variable"), values_to = "value") %>%
+      separate(., variable, into = c("EST_YEAR", "SEASON", "variable"), sep = "_", extra = "merge") %>%
+      pivot_wider(., names_from = variable, values_from = value)
+    
+    # Adding in some other columns we will want to match up easily with 'vast_data_out'
+    pred_covs_df_out_temp<- pred_covs_df_out_temp %>%
+      mutate(., EST_YEAR = as.numeric(EST_YEAR),
+             DATE = paste(EST_YEAR, case_when(
+               SEASON == "Winter" ~ "12-16",
+               SEASON == "Spring" ~ "03-16",
+               SEASON == "Summer" ~ "07-16",
+               SEASON == "Fall" ~ "09-16"), sep = "-"),
+             SURVEY = "DUMMY",
+             SVVESSEL = "DUMMY",
+             NMFS_SVSPP = "DUMMY",
+             DFO_SPEC = "DUMMY",
+             PRESENCE = 1,
+             BIOMASS = 1,
+             ABUNDANCE = 1,
+             ID = paste("DUMMY", DATE, sep = ""),
+             PredTF = TRUE)
+    
+    if(i == 1){
+      pred_covs_out<- pred_covs_df_out_temp
+    } else {
+      pred_covs_out<- bind_rows(pred_covs_out, pred_covs_df_out_temp)
+    }
+  }
+  
+  # Only going to keep information from fit_year_max through pred_years...
+  pred_covs_out_final<- pred_covs_out %>%
+    dplyr::filter(., EST_YEAR >= pred_year_min & EST_YEAR <= pred_year_max)
+  
+  # New implementation...
+  pred_covs_out_final<- pred_covs_out_final %>%
+    mutate(., #VAST_YEAR_COV = EST_YEAR,
+          #VAST_YEAR_COV = ifelse(EST_YEAR > fit_year_max, fit_year_max, EST_YEAR),
+           VAST_YEAR_COV = ifelse(EST_YEAR > pred_year_max, pred_year_max, EST_YEAR),
+           VAST_SEASON = case_when(
+             SEASON == "Spring" ~ "SPRING",
+             SEASON == "Summer" ~ "SUMMER",
+             SEASON == "Fall" ~ "FALL"
+           ),
+           "VAST_YEAR_SEASON" = paste(VAST_YEAR_COV, VAST_SEASON, sep = "_"))
+  
+  # Subset to only seasons of interest...
+  pred_covs_out_final<- pred_covs_out_final %>%
+    filter(., VAST_SEASON %in% fit_seasons)
+  
+  # Need to account for new levels in year season...
+  #all_years<- seq(from = pred_year_min, to = max(fit_year_max), by = 1)
+  all_years<- seq(from = pred_year_min, to = max(pred_year_max), by = 1)
+  all_seasons<- fit_seasons
+  year_season_set<- expand.grid("SEASON" = all_seasons, "EST_YEAR" = all_years)
+  all_year_season_levels<- apply(year_season_set[,2:1], MARGIN = 1, FUN = paste, collapse = "_")
+  
+  pred_covs_out_final<- pred_covs_out_final %>%
+    mutate(., "VAST_YEAR_SEASON" = factor(VAST_YEAR_SEASON, levels = all_year_season_levels),
+           "VAST_SEASON" = factor(VAST_SEASON, levels = all_seasons))
+  
+  # Name rearrangement!
+  # Keep only what we need..
+  cov_names<- names(pred_covs_out_final)[-which(names(pred_covs_out_final) %in% c("ID", "DATE", "EST_YEAR", "SEASON", "SURVEY", "SVVESSEL", "DECDEG_BEGLAT", "DECDEG_BEGLON", "Extrap_ID", "NMFS_SVSPP", "DFO_SPEC", "PRESENCE", "BIOMASS", "ABUNDANCE", "PredTF", "VAST_YEAR_COV", "VAST_SEASON", "VAST_YEAR_SEASON"))]
+  pred_covs_out_final<- pred_covs_out_final %>%
+    dplyr::select(., "ID", "DATE", "EST_YEAR", "SEASON", "SURVEY", "SVVESSEL", "DECDEG_BEGLAT", "DECDEG_BEGLON", "Extrap_ID", "NMFS_SVSPP", "DFO_SPEC", "PRESENCE", "BIOMASS", "ABUNDANCE", "PredTF", "VAST_YEAR_COV", "VAST_SEASON", "VAST_YEAR_SEASON", {{cov_names}})
+  
+  # Any extra covariates will likely be static...
+  if(!is.null(extra_covariates_stack)){
+    pred_covs_sf<- points_to_sf(pred_covs_out_final)
+    
+    pred_covs_out_final<- static_extract_wrapper(static_covariates_list = extra_covariates_stack, sf_points = pred_covs_sf, date_col_name = "DATE", df_sf = "df", out_dir = NULL)
+  }
+  
+  # Apply depth cut and drop NAs
+  pred_covs_out_final<- pred_covs_out_final %>%
+    mutate(., "Depth" = ifelse(Depth > depth_cut, NA, Depth),
+           "Summarized" = summarize,
+           "Ensemble_Stat" = ensemble_stat) %>%
+    drop_na()
+  
+  # Rescale
+  if(!is.null(rescale_params)){
+    for(i in seq_along(covs_rescale)){
+      match_mean<- rescale_params[which(names(rescale_params) == paste(covs_rescale[i], "Mean", sep = "_"))]
+      match_sd<- rescale_params[which(names(rescale_params) == paste(covs_rescale[i], "SD", sep = "_"))]
+      pred_covs_out_final<- pred_covs_out_final %>%
+        mutate_at(., {{covs_rescale[i]}}, .funs = covariate_rescale_func, type = "AJA", center = match_mean, scale = match_sd)
+    }
+  }
+  
+  # Some formatting...
+  pred_covs_out_final<- data.frame(
+    "Year" = pred_covs_out_final$VAST_YEAR_SEASON,
+    "Year_Cov" = factor(pred_covs_out_final$VAST_YEAR_COV),
+    "Season" = pred_covs_out_final$VAST_SEASON,
+    "Depth" = pred_covs_out_final$Depth,
+    "SST_seasonal" = pred_covs_out_final$SST_seasonal,
+    "BT_seasonal" = pred_covs_out_final$BT_seasonal,
+    "BS_seasonal" = pred_covs_out_final$BS_seasonal,
+    "SS_seasonal" = pred_covs_out_final$SS_seasonal,
+    "Lat" = pred_covs_out_final$DECDEG_BEGLAT,
+    "Lon" = pred_covs_out_final$DECDEG_BEGLON,
+    "Extrap_ID" = pred_covs_out_final$Extrap_ID,
+    "Date" = pred_covs_out_final$DATE
+  )
+  
+  # Save and return it
+  saveRDS(pred_covs_out_final, file = paste(out_dir, "/VAST_post_fit_pred_df_", summarize, "_", ensemble_stat, ".rds", sep = "" ))
+  return(pred_covs_out_final)
+}
 
 predict.fit_model_aja<- function(x, what = "D_i", Lat_i, Lon_i, t_i, a_i, c_iz = rep(0,length(t_i)), v_i = rep(0,length(t_i)), new_covariate_data = NULL, new_catchability_data = NULL, do_checks = TRUE, working_dir = paste0(getwd(),"/")){
   
@@ -1487,6 +1690,7 @@ predict.fit_model_aja<- function(x, what = "D_i", Lat_i, Lon_i, t_i, a_i, c_iz =
     c_iz = pred_category
     v_i = rep(0,length(t_i)) 
     new_covariate_data = pred_cov_dat_use
+    new_covariate_data = pred_covs_out_final
     new_catchability_data = pred_catch_dat_use
     do_checks = FALSE
     working_dir = paste0(getwd(), "/")
@@ -1904,8 +2108,8 @@ get_vast_index_timeseries<- function(vast_fit, all_times, nice_category_names, i
     index_scale = "raw"
     out_dir = here::here("scratch/aja/TargetsSDM/results/tables")
     
-    vast_fit = vast_fitted_hab_covs
-    all_times = unique(vast_sample_data_aug$Year)
+    vast_fit = vast_fit
+    all_times = unique(vast_samp_dat$Year)
     nice_category_names = "Atlantic_halibut_habcovs"
     index_scale = c("raw")
     out_dir = here::here("", "results/tables")
@@ -1927,21 +2131,25 @@ get_vast_index_timeseries<- function(vast_fit, all_times, nice_category_names, i
   
   # Get the index information
   SD<- TMB::summary.sdreport(Sdreport)
-  SD_stderr<- TMB:::as.list.sdreport(Sdreport, what = "Std. Error", report = TRUE)
-  SD_estimate<- TMB:::as.list.sdreport(Sdreport, what = "Estimate", report = TRUE)
-  if(vast_fit$settings$bias.correct == TRUE && "unbiased" %in% names(Sdreport)){
-    SD_estimate_biascorrect<- TMB:::as.list.sdreport(Sdreport, what = "Std. (bias.correct)", report = TRUE)
-  }
-  
+  # SD_stderr<- TMB:::as.list.sdreport(Sdreport, what = "Std. Error", report = TRUE)
+  # SD_estimate<- TMB:::as.list.sdreport(Sdreport, what = "Estimate", report = TRUE)
+  # if(vast_fit$settings$bias.correct == TRUE && "unbiased" %in% names(Sdreport)){
+  #   SD_estimate_biascorrect<- TMB:::as.list.sdreport(Sdreport, what = "Std. (bias.correct)", report = TRUE)
+  # }
+  # 
   # Now, populate array with values
-  Index_ctl = log_Index_ctl = array(NA, dim = c(unlist(TmbData[c('n_c','n_t','n_l')]), 2), dimnames = list(categories_ind, time_labels, index_regions, c('Estimate','Std. Error')))
+  Index_ctl = log_Index_ctl = array(NA, dim = c(unlist(TmbData[c('n_c','n_t','n_l')]), 2), dimnames = list(categories_ind, time_labels, index_regions, c('Estimate', 'Std. Error')))
   
   if(index_scale == "raw"){
-    if(vast_fit$settings$bias.correct == TRUE && "unbiased" %in% names(Sdreport)){
-      Index_ctl[] = SD[which(rownames(SD) == "Index_ctl"),c('Est. (bias.correct)','Std. Error')]
-    } else {
+    # if(vast_fit$settings$bias.correct == TRUE && "unbiased" %in% names(Sdreport)){
+    #   Index_ctl = log_Index_ctl = array(NA, dim = c(unlist(TmbData[c('n_c','n_t','n_l')]), 2), dimnames = list(categories_ind, time_labels, index_regions, c('Est. (bias.correct)', 'Std. Error')))
+    #   Index_ctl[] = SD[which(rownames(SD) == "Index_ctl"),c('Est. (bias.correct)','Std. Error')]
+    # } else {
+    #   Index_ctl = log_Index_ctl = array(NA, dim = c(unlist(TmbData[c('n_c','n_t','n_l')]), 2), dimnames = list(categories_ind, time_labels, index_regions, c('Estimate', 'Std. Error')))
+    #   Index_ctl[]<- SD[which(rownames(SD) == "Index_ctl"), c('Estimate','Std. Error')]
+    # }
+      Index_ctl = log_Index_ctl = array(NA, dim = c(unlist(TmbData[c('n_c','n_t','n_l')]), 2), dimnames = list(categories_ind, time_labels, index_regions, c('Estimate', 'Std. Error')))
       Index_ctl[]<- SD[which(rownames(SD) == "Index_ctl"), c('Estimate','Std. Error')]
-    }
     index_res_array<- Index_ctl
   } else {
     if(vast_fit$settings$bias.correct == TRUE && "unbiased" %in% names(Sdreport)){
@@ -2076,6 +2284,15 @@ plot_vast_index_timeseries<- function(index_res_df, year_stop = NULL, index_scal
     paneling = "none"
     color_pal = NULL
     out_dir = here::here("", "Objective 3/Temp_Results")
+    
+    index_res_df = vast_bio
+    index_scale = "raw"
+    nice_category_names = "summer_flounder"
+    nice_xlab = "Year"
+    nice_ylab= "Biomass index (metric tons)"
+    paneling = "none"
+    color_pal = NULL
+    out_dir = here("results/vast")
   }
   
   if(paneling == "none"){
@@ -2330,7 +2547,7 @@ plot_vast_covariate_effects<- function(vast_covariate_effects, vast_fit, nice_ca
 ######
 vast_plot_design<- function(vast_fit, land, spat_grid, xlim = c(-80, -55), ylim = c(35, 50), land_color = "#f0f0f0", out_dir){
   if(FALSE){
-    tar_load(vast_fit)
+    vast_fit<- readRDS(paste(res_root, "mod_fits/American_lobster_STnoRW_fitted_vast.rds", sep = ''))
     tar_load(land_sf)
     spat_grid = "~/GitHub/sdm_workflow/scratch/aja/TargetsSDM/data/predict/predict_stack_SST_seasonal_mean.grd"
     land = land_sf
@@ -2602,9 +2819,11 @@ vast_mesh_to_sf <- function(vast_fit, crs_transform = "+proj=longlat +datum=WGS8
 #' 
 #' @description Creates either a panel plot or a gif of VAST model spatial or spatio-temporal parameter surfaces or derived quantities
 #'
-#' @param vast_fit = A VAST `fit_model` object.
-#' @param spatial_var = An estimated spatial coefficient or predicted value. Currently works for `D_gct`, `R1_gct`, `R2_gct`, `P1_gct`, `P2_gct`, `Omega1_gc`, `Omega2_gc`, `Epsilon1_gct`, `Epsilon2_gct`.
-#' @param nice_category_names = A
+#' @param vast_fit = A VAST `fit_model` object 
+#' @param manaul_pred_df = Data frame with location, time and predicted value information OR NULL if using vast_fit
+#' @param spatial_var = An estimated spatial coefficient or predicted value or NULL. Currently works for `D_gct`, `R1_gct`, `R2_gct`, `P1_gct`, `P2_gct`, `Omega1_gc`, `Omega2_gc`, `Epsilon1_gct`, `Epsilon2_gct`.
+#' @param nice_category_names = A character string to define species/model run and used in naming the output prediction file.
+#' @param pred_label = Explain
 #' @param all_times = A vector of all of the unique time steps available from the VAST fitted model
 #' @param plot_times = Either NULL to make a plot for each time in `all_times` or a vector of all of the times to plot, which must be a subset of `all_times`
 #' @param land_sf = Land sf object
@@ -2617,7 +2836,7 @@ vast_mesh_to_sf <- function(vast_fit, crs_transform = "+proj=longlat +datum=WGS8
 #'
 #' @export
 
-vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mask, all_times = all_times, plot_times = NULL, land_sf, xlim, ylim, x_dim_length = 115, y_dim_length = 133, lab_lat = 33.75, lab_lon = -67.5, panel_or_gif = "gif", out_dir, land_color = "#d9d9d9", panel_cols = NULL, panel_rows = NULL, ...){
+vast_fit_plot_spatial<- function(vast_fit, manual_pred_df, spatial_var, nice_category_names, pred_label, mask, all_times = all_times, plot_times = NULL, land_sf, xlim, ylim, lab_lat = 33.75, lab_lon = -67.5, panel_or_gif = "gif", out_dir, land_color = "#d9d9d9", panel_cols = NULL, panel_rows = NULL, ...){
   if(FALSE){
     tar_load(vast_fit)
     template = raster("~/GitHub/sdm_workflow/scratch/aja/TargetsSDM/data/supporting/HighResTemplate.grd")
@@ -2629,112 +2848,75 @@ vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mas
     mask = region_shapefile
     land_color = "#d9d9d9"
     res_data_path = "~/Box/RES_Data/"
-    xlim = c(-85, -55)
-    ylim = c(30, 50)
+    xlim = c(-78.5, -56)
+    ylim = c(35, 48)
     panel_or_gif = "gif"
     panel_cols = NULL
     panel_rows = NULL
-    
-    vast_fit = vast_fitted
+    grid_space_use = 10
+    lab_lat = 36
+    lab_lon = -60
     spatial_var = "D_gct"
-    nice_category_names = "Atlantic halibut"
-    mask = region_shape
-    all_times = as.character(unique(vast_sample_data$EST_YEAR))
-    plot_times = NULL
-    land_sf = land_use
-    xlim = xlim_use
-    ylim = ylim_use
-    panel_or_gif = "panel"
-    out_dir = here::here("", "results/plots_maps")
-    land_color = "#d9d9d9"
-    panel_cols = 6
-    panel_rows = 7
     
-    vast_fit = vast_fitted_hab_covs
-    spatial_var = "D_gct"
-    nice_category_names = nice_category_names
-    mask = menh_chull
-    all_times = as.character(unique(vast_sample_data$Year))
+    # Manual
+    vast_fit = readRDS("/Users/aallyn/Library/CloudStorage/Box-Box/Mills Lab/Projects/sdm_workflow/targets_output/mod_fits/American_lobster_STnoRW_fitted_vast.rds")
+    manual_pred_df = read.csv(paste0(res_root, "prediction_df/American_lobster_SSP5_85_mean_projections.csv"))
+    tar_load(region_shapefile)
+    mask = region_shapefile
+    nice_category_names = "American_lobster"
+    pred_label = "SSP5_85_mean"
+    all_times = unique(manual_pred_df$Real_Date)
     plot_times = NULL
-    land_sf = land
-    xlim = xlim_use
-    ylim = ylim_use
-    panel_or_gif = "panel"
-    out_dir = out_dir_use
-    land_color = "#d9d9d9"
-    panel_cols = 4
-    panel_rows = 5
-    x_dim_length = 715
-    y_dim_length = 733
+    tar_load(land_sf)
+    xlim = c(-78.5, -55)
+    ylim = c(34.5, 48.25)
+    panel_or_gif = "gif"
+    panel_cols = NULL
+    panel_rows = NULL
+    grid_space_utm = 25000
+    lab_lat = 36
     lab_lon = -67.5
-    lab_lat = 43
+    out_dir = paste0(res_root, "plots_maps")
+    land_color = "#d9d9d9"
   }
   
-  # Plotting at spatial knots...
-  # First check the spatial_var, only a certain subset are being used...
-  if(!spatial_var %in% c("D_gct", "R1_gct", "R2_gct", "P1_gct", "P2_gct", "Omega1_gc", "Omega2_gc", "Epsilon1_gct", "Epsilon2_gct")){
-    stop(print("Check `spatial_var` input. Currently must be one of `D_gct`, `R1_gct`, `R2_gct`, `P1_gct`, `P2_gct`, `Omega1_gc`, `Omega2_gc`, `Epsilon1_gct`, `Epsilon2_gct`."))
-  }
-  
-  # Getting prediction array
-  pred_array<- vast_fit$Report[[{{spatial_var}}]]
-  if(spatial_var == "D_gct"){
-    pred_array<- log(pred_array+1)
-  }
-  
-  # Getting time info
-  if(!is.null(plot_times)){
-    plot_times<- all_times[which(all_times) %in% plot_times]
-  } else {
-    plot_times<- all_times
-  }
-  
-  # Getting spatial information
-  spat_data<- vast_fit$extrapolation_list
-  loc_g<- spat_data$Data_Extrap[which(spat_data$Data_Extrap[, "Include"] > 0), c("Lon", "Lat")]
-  CRS_orig<- sp::CRS("+proj=longlat")
-  CRS_proj<- sp::CRS(spat_data$projargs)
-  land_sf<- st_crop(land_sf, xmin = xlim[1], ymin = ylim[1], xmax = xlim[2], ymax = ylim[2])
-  
-  # Looping through...
-  rasts_out<- vector("list", dim(pred_array)[length(dim(pred_array))])
-  rasts_range<- pred_array
-  rast_lims_min<- ifelse(spatial_var %in% c("D_gct", "R1_gct", "R2_gct", "P1_gct", "P2_gct"), 0, min(rasts_range))
-  rast_lims_max<- ifelse(spatial_var %in% c("D_gct", "R1_gct", "R2_gct", "P1_gct", "P2_gct"), round(max(rasts_range) + 0.0000001, 2), max(rasts_range))
-  rast_lims<- c(rast_lims_min, rast_lims_max)
-  
-  if(length(dim(pred_array)) == 2){
+  if(is.null(manual_pred_df)){
+    # Plotting at spatial knots...
+    # First check the spatial_var, only a certain subset are being used...
+    if(!spatial_var %in% c("D_gct", "R1_gct", "R2_gct", "P1_gct", "P2_gct", "Omega1_gc", "Omega2_gc", "Epsilon1_gct", "Epsilon2_gct")){
+      stop(print("Check `spatial_var` input. Currently must be one of `D_gct`, `R1_gct`, `R2_gct`, `P1_gct`, `P2_gct`, `Omega1_gc`, `Omega2_gc`, `Epsilon1_gct`, `Epsilon2_gct`."))
+    }
     
-    data_df<- data.frame(loc_g, z = pred_array)
+    # Getting prediction array
+    pred_array<- vast_fit$Report[[{{spatial_var}}]]
+    if(spatial_var == "D_gct"){
+      pred_array<- log(pred_array+1)
+    }
     
-    # Interpolation
-    pred_df<- na.omit(data.frame("x" = data_df$Lon, "y" = data_df$Lat, "layer" = data_df$z))
-    pred_df_interp<- interp(pred_df[,1], pred_df[,2], pred_df[,3], duplicate = "mean", extrap = TRUE,
-                            xo=seq(-87.99457, -57.4307, length = x_dim_length),
-                            yo=seq(22.27352, 48.11657, length = y_dim_length))
-    pred_df_interp_final<- data.frame(expand.grid(x = pred_df_interp$x, y = pred_df_interp$y), z = c(round(pred_df_interp$z, 2)))
-    pred_sp<- st_as_sf(pred_df_interp_final, coords = c("x", "y"), crs = CRS_orig)
+    # Getting time info
+    if(!is.null(plot_times)){
+      plot_times<- all_times[which(all_times) %in% plot_times]
+    } else {
+      plot_times<- all_times
+    }
     
-    pred_df_temp<- pred_sp[which(st_intersects(pred_sp, mask, sparse = FALSE) == TRUE),]
-    coords_keep<- as.data.frame(st_coordinates(pred_df_temp))
-    row.names(coords_keep)<- NULL
-    pred_df_use<- data.frame(cbind(coords_keep, "z" = as.numeric(pred_df_temp$z)))
-    names(pred_df_use)<- c("x", "y", "z")
+    # Getting spatial information
+    spat_data<- vast_fit$extrapolation_list
+    loc_g<- spat_data$Data_Extrap[which(spat_data$Data_Extrap[, "Include"] > 0), c("Lon", "Lat")]
+    CRS_orig<- sp::CRS("+proj=longlat")
+    CRS_proj<- sp::CRS(spat_data$projargs)
+    land_sf<- st_crop(land_sf, xmin = xlim[1], ymin = ylim[1], xmax = xlim[2], ymax = ylim[2])
     
-    plot_out<- ggplot() +
-      geom_tile(data = pred_df_use, aes(x = x, y = y, fill = z)) +
-      scale_fill_viridis_c(name = spatial_var, option = "viridis", na.value = "transparent", limits = rast_lims) +
-      annotate("text", x = lab_lon, y = lab_lat, label = spatial_var) +
-      geom_sf(data = land_sf, fill = land_color, lwd = 0.2, na.rm = TRUE) +
-      coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
-      theme(panel.background = element_rect(fill = "white"), panel.border = element_rect(fill = NA), axis.text.x=element_blank(), axis.text.y=element_blank(), axis.ticks=element_blank(), axis.title = element_blank(), plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt"))
+    # Looping through...
+    rasts_out<- vector("list", dim(pred_array)[length(dim(pred_array))])
+    rasts_range<- pred_array
+    rast_lims_min<- ifelse(spatial_var %in% c("D_gct", "R1_gct", "R2_gct", "P1_gct", "P2_gct"), 0, min(rasts_range))
+    rast_lims_max<- ifelse(spatial_var %in% c("D_gct", "R1_gct", "R2_gct", "P1_gct", "P2_gct"), round(max(rasts_range) + 0.0000001, 2), max(rasts_range))
+    rast_lims<- c(rast_lims_min, rast_lims_max)
     
-    ggsave(filename = paste(out_dir, "/", nice_category_names, "_", spatial_var, ".png", sep = ""), plot_out, width = 11, height = 8, units = "in")
-    return(plot_out)
-  } else {
-    
-    for (tI in 1:dim(pred_array)[3]) {
-      data_df<- data.frame(loc_g, z = pred_array[,1,tI])
+    if(length(dim(pred_array)) == 2){
+      
+      data_df<- data.frame(loc_g, z = pred_array)
       
       # Interpolation
       pred_df<- na.omit(data.frame("x" = data_df$Lon, "y" = data_df$Lat, "layer" = data_df$z))
@@ -2749,21 +2931,125 @@ vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mas
       row.names(coords_keep)<- NULL
       pred_df_use<- data.frame(cbind(coords_keep, "z" = as.numeric(pred_df_temp$z)))
       names(pred_df_use)<- c("x", "y", "z")
-   
-      time_plot_use<- plot_times[tI]
       
-      rasts_out[[tI]]<- ggplot() +
+      plot_out<- ggplot() +
         geom_tile(data = pred_df_use, aes(x = x, y = y, fill = z)) +
         scale_fill_viridis_c(name = spatial_var, option = "viridis", na.value = "transparent", limits = rast_lims) +
-        annotate("text", x = lab_lon, y = lab_lat, label = time_plot_use) +
+        annotate("text", x = lab_lon, y = lab_lat, label = spatial_var) +
         geom_sf(data = land_sf, fill = land_color, lwd = 0.2, na.rm = TRUE) +
         coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
+        theme(panel.background = element_rect(fill = "white"), panel.border = element_rect(fill = NA), axis.text.x=element_blank(), axis.text.y=element_blank(), axis.ticks=element_blank(), axis.title = element_blank(), plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt"))
+      
+      ggsave(filename = paste(out_dir, "/", nice_category_names, "_", climate_scenario, "_", spatial_var, ".png", sep = ""), plot_out, width = 11, height = 8, units = "in")
+      return(plot_out)
+    } else {
+      
+      for (tI in 1:dim(pred_array)[3]) {
+        data_df<- data.frame(loc_g, z = pred_array[,1,tI])
+        
+        # Interpolation
+        pred_df<- na.omit(data.frame("x" = data_df$Lon, "y" = data_df$Lat, "layer" = data_df$z))
+        pred_df_interp<- interp(pred_df[,1], pred_df[,2], pred_df[,3], duplicate = "mean", extrap = TRUE,
+                                xo=seq(-87.99457, -57.4307, length = x_dim_length),
+                                yo=seq(22.27352, 48.11657, length = y_dim_length))
+        pred_df_interp_final<- data.frame(expand.grid(x = pred_df_interp$x, y = pred_df_interp$y), z = c(round(pred_df_interp$z, 2)))
+        pred_sp<- st_as_sf(pred_df_interp_final, coords = c("x", "y"), crs = CRS_orig)
+        
+        pred_df_temp<- pred_sp[which(st_intersects(pred_sp, mask, sparse = FALSE) == TRUE),]
+        coords_keep<- as.data.frame(st_coordinates(pred_df_temp))
+        row.names(coords_keep)<- NULL
+        pred_df_use<- data.frame(cbind(coords_keep, "z" = as.numeric(pred_df_temp$z)))
+        names(pred_df_use)<- c("x", "y", "z")
+        
+        time_plot_use<- plot_times[tI]
+        
+        rasts_out[[tI]]<- ggplot() +
+          geom_tile(data = pred_df_use, aes(x = x, y = y, fill = z)) +
+          scale_fill_viridis_c(name = spatial_var, option = "viridis", na.value = "transparent", limits = rast_lims) +
+          annotate("text", x = lab_lon, y = lab_lat, label = time_plot_use) +
+          geom_sf(data = land_sf, fill = land_color, lwd = 0.2, na.rm = TRUE) +
+          coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
+          theme(panel.background = element_rect(fill = "white"), panel.border = element_rect(fill = NA), axis.text.x=element_blank(), axis.text.y=element_blank(), axis.ticks=element_blank(), axis.title = element_blank(), plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt"))
+      }
+      if(panel_or_gif == "panel"){
+        # Panel plot
+        all_plot<- wrap_plots(rasts_out, ncol = panel_cols, nrow = panel_rows, guides = "collect", theme(plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt")))
+        ggsave(filename = paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_", spatial_var, ".png"), all_plot, width = 11, height = 8, units = "in")
+        return(all_plot)
+      } else {
+        # Make a gif
+        plot_loop_func<- function(plot_list){
+          for (i in seq_along(plot_list)) {
+            plot_use<- plot_list[[i]]
+            print(plot_use)
+          }
+        }
+        invisible(save_gif(plot_loop_func(rasts_out), paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_", spatial_var, ".gif"), delay = 0.75, progress = FALSE))
+      }
+    }
+  } else {
+    # Using manual post fit predictions data frame
+    # Getting time info
+    if(!is.null(plot_times)){
+      plot_times<- all_times[which(all_times) %in% plot_times]
+    } else {
+      plot_times<- all_times
+    }
+    
+    # Getting spatial information
+    land_sf<- st_transform(land_sf, crs = 32619)
+    
+    # Converting limits...
+    plot_coords<- st_sfc(st_point(c(xlim[1], ylim[1])), st_point(c(xlim[2], ylim[2])), crs = 4326) %>%
+      st_transform(., crs = 32619) %>%
+      st_coordinates(.)
+    
+    lab_coords<- st_sfc(st_point(c(lab_lon[1], lab_lat[1])), crs = 4326) %>%
+      st_transform(., crs = 32619) %>%
+      st_coordinates(.)
+    
+    # We want a prediction grid...
+    mask_utm<- vast_mesh_to_sf(vast_fit)$triangles %>%
+      st_union() %>%
+      st_transform(., crs = 32619)
+    pred_grid<- mask_utm %>%
+      st_make_grid(., cellsize = grid_space_utm, what = "polygons", square = TRUE) 
+    
+    pred_grid2<- pred_grid %>%
+      st_intersection(., mask_utm)
+    
+    # Raster storage and limits
+    rasts_out<- vector("list", length(plot_times))
+    rast_lims<- c(0, max(log((625*manual_pred_df$Dens) + 1)))
+    
+    for (tI in seq_along(plot_times)) {
+      time_plot_use<- plot_times[tI]
+      
+      plot_label<- paste(format(as.Date(time_plot_use), "%Y"), ifelse(grepl("03-16", time_plot_use), "SPRING", ifelse(grepl("07-16", time_plot_use), "SUMMER", "FALL")), sep = " ")
+      
+      data_df<- manual_pred_df %>%
+        dplyr::filter(., Real_Date == time_plot_use) %>%
+        st_as_sf(., coords = c("Lon", "Lat"), crs = 4326, remove = FALSE) %>%
+        st_transform(., crs = 32619) %>%
+        dplyr::select(., Lon, Lat, Dens, geometry)
+      
+      pred_idw<- idw(Dens ~ 1, data_df, pred_grid2) %>%
+        mutate(., "Biomass" = var1.pred * 625,
+               "Log_Biomass" = log(Biomass + 1))
+
+      plot_out<- ggplot() +
+        geom_sf(data = pred_idw, aes(fill = Log_Biomass, color = Log_Biomass)) +
+        scale_fill_viridis_c(name = "Log biomass (kg)", option = "viridis", na.value = "transparent", limits = rast_lims) +
+        scale_color_viridis_c(name = "Log biomass (kg)", option = "viridis", na.value = "transparent", limits = rast_lims) +
+        annotate("text", x = lab_lon, y = lab_lat, label = plot_label) +
+        geom_sf(data = land_sf, fill = land_color, lwd = 0.2, na.rm = TRUE) +
+        coord_sf(xlim = xlim, ylim = ylim, expand = FALSE, crs = 4326) +
         theme(panel.background = element_rect(fill = "white"), panel.border = element_rect(fill = NA), axis.text.x=element_blank(), axis.text.y=element_blank(), axis.ticks=element_blank(), axis.title = element_blank(), plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt"))
     }
     if(panel_or_gif == "panel"){
       # Panel plot
       all_plot<- wrap_plots(rasts_out, ncol = panel_cols, nrow = panel_rows, guides = "collect", theme(plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt")))
-      ggsave(filename = paste0(out_dir, "/", nice_category_names, "_", spatial_var, ".png"), all_plot, width = 11, height = 8, units = "in")
+      ggsave(filename = paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_", "density.png"), all_plot, width = 11, height = 8, units = "in")
       return(all_plot)
     } else {
       # Make a gif
@@ -2773,9 +3059,10 @@ vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mas
           print(plot_use)
         }
       }
-      invisible(save_gif(plot_loop_func(rasts_out), paste0(out_dir, "/", nice_category_names, "_", spatial_var, ".gif"), delay = 0.75, progress = FALSE))
+      invisible(save_gif(plot_loop_func(rasts_out), paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_", "density.gif"), delay = 0.75, progress = FALSE))
     }
   }
+  
 }
 
 
@@ -2785,7 +3072,7 @@ vast_fit_plot_spatial<- function(vast_fit, spatial_var, nice_category_names, mas
 #'
 #' @param vast_fit = A VAST `fit_model` object.
 #' @param use_PredTF_only = Logical TRUE/FALSE. If TRUE, then only the locations specified as PredTF == 1 will be extracted. Otherwise, all points will be included.
-#' @param nice_category_names 
+#' @param nice_category_names = A character string to define species/model run and used in naming the output prediction file.
 #' @param out_dir = Output directory to save the dataset
 #' 
 #' @return A dataframe with lat, lon, observations and model predictions
@@ -2832,7 +3119,7 @@ vast_get_point_preds<- function(vast_fit, use_PredTF_only, nice_category_names, 
 #'
 #' @param vast_fit = A VAST `fit_model` object.
 #' @param spatial_var = An estimated spatial coefficient or predicted value. Currently works for `D_gct`, `R1_gct`, `R2_gct`, `P1_gct`, `P2_gct`, `Omega1_gc`, `Omega2_gc`, `Epsilon1_gct`, `Epsilon2_gct`.
-#' @param nice_category_names 
+#' @param nice_category_names = A character string to define species/model run and used in naming the output prediction file.
 #' @param out_dir = Output directory to save the dataframe
 #' 
 #' @return A dataframe with lat, lon, observations and model predictions
@@ -2916,6 +3203,17 @@ vast_plot_cog<- function(vast_fit, all_times, summarize = TRUE, land_sf, xlim, y
     land_color = "#d9d9d9"
     color_pal = NULL
     out_dir = here::here("", "results/plots_maps")
+    
+    vast_fit = vast_fit
+    all_times = unique(vast_samp_dat$Year)
+    summarize = TRUE
+    land_sf = land_use
+    xlim = xlim_use
+    ylim = ylim_use
+    nice_category_names = "Summer flounder"
+    land_color = "#d9d9d9"
+    color_pal = NULL
+    out_dir = here("results/vast")
   }
   
   TmbData<- vast_fit$data_list
@@ -2930,12 +3228,12 @@ vast_plot_cog<- function(vast_fit, all_times, summarize = TRUE, land_sf, xlim, y
   
   # Get the index information
   SD<- TMB::summary.sdreport(Sdreport)
-  SD_stderr<- TMB:::as.list.sdreport(Sdreport, what = "Std. Error", report = TRUE)
-  SD_estimate<- TMB:::as.list.sdreport(Sdreport, what = "Estimate", report = TRUE)
-  if(vast_fit$settings$bias.correct == TRUE && "unbiased" %in% names(Sdreport)){
-    SD_estimate_biascorrect<- TMB:::as.list.sdreport(Sdreport, what = "Std. (bias.correct)", report = TRUE)
-  }
-  
+  # SD_stderr<- TMB:::as.list.sdreport(Sdreport, what = "Std. Error", report = TRUE)
+  # SD_estimate<- TMB:::as.list.sdreport(Sdreport, what = "Estimate", report = TRUE)
+  # if(vast_fit$settings$bias.correct == TRUE && "unbiased" %in% names(Sdreport)){
+  #   SD_estimate_biascorrect<- TMB:::as.list.sdreport(Sdreport, what = "Std. (bias.correct)", report = TRUE)
+  # }
+  # 
   # Now, populate array with values
   mean_Z_ctm = array(NA, dim = c(unlist(TmbData[c('n_c','n_t')]), 2, 2), dimnames = list(categories_ind, time_labels, c('Lon', 'Lat'), c('Estimate','Std. Error')))
   mean_Z_ctm[] = SD[which(rownames(SD) == "mean_Z_ctm"), c('Estimate','Std. Error')]
@@ -3070,6 +3368,290 @@ vast_plot_cog<- function(vast_fit, all_times, summarize = TRUE, land_sf, xlim, y
   ggsave(plot_out, file = paste(out_dir, "/COG_", "_", nice_category_names, ".jpg", sep = ""))
   return(plot_out)
 }
+
+
+#' @title VAST manual predictions
+#' 
+#' @description Make predictions from a fitted VAST model given new covariate data, with a few key assumptions. In particular, right now, just the "environment_only" option is implemented. This will assume that the spatio-temporal surfaces are constant in the "future" and all projected occurrence changes arise mainly from changes in environmental conditions. 
+#'
+#' @param vast_fit = A VAST `fit_model` object.
+#' @param pred_type = Character string signaling the prediction type to use. Currently only implemented as "environment_only".
+#' @param obs_or_gird = Either "obs" or "grid" signaling if the predictions should be done at an observation level OR at a grid level. For climate projections, we are using the grid option as the "new_covariate_data" uses extrapolation grid location and then bilinear interpolation to calculate covariate values at these locations.
+#' @param pred_label = Character string to characterize the predictions, included in the output file name. For example, this could be based on the climate scenario used.
+#' @param set_re_zero = Logical flag. IF true, this will set all random effects to 0.
+#' @param new_covariate_data = A dataframe with new covariate data to use to make the predictions. Has to include all of the necessary columns to match those used during the model fitting process.
+#' @param new_catchability_data = A dataframe with new catchability data to use to make the predictions. Has to include all of the necessary columns to match those used during the model fitting process.
+#' @param nice_category_names = A character string to define species/model run and used in naming the output prediction file.
+#' @param out_dir = Output directory to save the dataset
+#' 
+#' @return A dataframe with columns for time, space, all of the data used to make the predictions, and the final predicted density at each location.
+#'
+#' @export
+
+vast_predict_manual<- function(vast_fit, pred_type = "environment_only", obs_or_grid = "grid", pred_label, set_re_zero = TRUE, new_covariate_data, new_catchability_data, nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df")){
+  if(FALSE){
+    # For debugging
+    vast_fit<- readRDS("/Users/aallyn/Library/CloudStorage/Box-Box/Mills Lab/Projects/sdm_workflow/targets_output/mod_fits/Atlantic_cod_ST1noRW_fitted_vast.rds")
+    nice_category_names = "Atlantic_cod"
+    pred_type = "environment_only"
+    obs_or_grid = "grid"
+    pred_label = "SSP5_85_mean"
+    set_re_zero = TRUE
+    new_covariate_data = readRDS("~/GitHub/TargetsSDM/data/predict/VAST_post_fit_pred_df_seasonal_mean.rds")
+    new_catchability_data = NULL
+    out_dir = paste0(res_root, "prediction_df")
+    
+    # From VAST code...
+    #P1_gct(g,c,t) = Omega1_gc(g,c) + beta1_tc(t,c) + Epsilon1_gct(g,c,t) + eta1_gct(g,c,t) + iota_ct(c,t)
+    #P2_gct(g,c,t) = Omega2_gc(g,c) + beta2_tc(t,c) + Epsilon2_gct(g,c,t) + eta2_gct(g,c,t)
+    #R1_gct(g,c,t) = Type(1.0) - exp( -exp(P1_gct(g,c,t)) )
+    #R2_gct(g,c,t) = exp(P1_gct(g,c,t)) / R1_gct(g,c,t) * exp( P2_gct(g,c,t) )
+    #D_gct(g,c,t) = exp( P1_gct(g,c,t) + P2_gct(g,c,t) ) # Use this line to prevent numerical over/underflow
+  }
+  
+  preds_out_full<- data.frame("Model_Date" = factor(new_covariate_data$Year, levels = levels(new_covariate_data$Year)), "Real_Date" = new_covariate_data$Date, "Lat" = new_covariate_data$Lat, "Lon" = new_covariate_data$Lon, "Extrap_ID" = new_covariate_data$Extrap_ID)
+
+  # Something going on here with the predictions...we aren't getting a year covariate estimate for 2015-2019. Need to ask Jim about this...
+  new_covariate_data$Year_Cov<- factor(ifelse(as.numeric(new_covariate_data$Year_Cov) > 31, "2015", as.character(new_covariate_data$Year_Cov)), levels = levels(vast_fit$covariate_data$Year_Cov))
+  
+  if(pred_type == "environment_only"){
+    # Here, we are fixing everything else in the model and only looking at the influence of environmental changes on species occurrence.
+    # Extracting what we need from the fitted model object. 
+    preds_out_sp<- data.frame("Lat" = new_covariate_data$Lat, "Lon" = new_covariate_data$Lon, "Extrap_ID" = new_covariate_data$Extrap_ID) %>%
+      distinct(., Extrap_ID, .keep_all = TRUE)
+    
+    ## Random effects 
+    # Omega first, this will be a surface and is constant through time. These values are going to change depending on if the fine_scale option is used. When they are used, values at knot locations (or grid locations) are estimated using a bilinear interpolation. When they are not, just nearest neighbor are used. To account for this, we just need to make sure to update value at locations as we go. If we are interested in observations, we will want to use the A_is and related information. If we are interested in extrapolation grid locations, we will want to use the A_gs matrix. With the A_is matrix, slot i corresponds to the observation ID, slot j to the knot ID, and slot x to the value. 
+    if(obs_or_grid == "grid"){
+      # Keeping track of the grid locations we want to retain
+      extrap_ids_check<- readr::parse_number(preds_out_sp$Extrap_ID)
+      
+      if(!set_re_zero){
+        preds_out_sp$omega1<- vast_fit$Report[[{{"Omega1_gc"}}]][extrap_ids_check,1]
+        preds_out_sp$omega2<- vast_fit$Report[[{{"Omega2_gc"}}]][extrap_ids_check,1]
+      } else {
+        preds_out_sp$omega1<- vast_fit$Report[[{{"Omega1_gc"}}]][extrap_ids_check,1]
+        preds_out_sp$omega2<- vast_fit$Report[[{{"Omega2_gc"}}]][extrap_ids_check,1]
+        # preds_out_sp$omega1<- 0
+        # preds_out_sp$omega2<- 0
+      }
+      
+      # Bring that over to preds_out_full -- join based on location...
+      preds_out_full<- preds_out_full %>%
+        left_join(., preds_out_sp, by = c("Lon" = "Lon", "Lat" = "Lat", "Extrap_ID" = "Extrap_ID"))
+      
+      # Average intercepts, these are constant across knots (sometimes, time too)
+      beta1<- data.frame("Model_Date" = factor(unique(new_covariate_data$Year), levels = levels(new_covariate_data$Year)), "beta1" = vast_fit$Report[[{{"beta1_tc"}}]])
+      beta2<- data.frame("Model_Date" = factor(unique(new_covariate_data$Year), levels = levels(new_covariate_data$Year)), "beta2" = vast_fit$Report[[{{"beta2_tc"}}]])
+      betas<- beta1 %>%
+        left_join(., beta2)
+      
+      preds_out_full<- preds_out_full %>%
+        left_join(., betas, by = c("Model_Date" = "Model_Date"))
+      
+      # Spatio_temporal -- similar to omega, but now with a temporal dimension...
+      if(!set_re_zero){
+        eps1_proj<- vast_fit$Report[[{{"Epsilon1_gct"}}]][extrap_ids_check,1,]
+        eps2_proj<- vast_fit$Report[[{{"Epsilon2_gct"}}]][extrap_ids_check,1,]
+      } else {
+        eps1_proj<- matrix(0, nrow = nrow(preds_out_sp), ncol = vast_fit$data_list$n_t)
+        eps2_proj<- matrix(0, nrow = nrow(preds_out_sp), ncol = vast_fit$data_list$n_t)
+      }
+    } else {
+      # Add knot to observation implementation with A_is here
+    }
+    
+    # Some work on column names...
+    eps1_wide<- data.frame("Extrap_ID" = preds_out_sp$Extrap_ID, eps1_proj)
+    colnames(eps1_wide)<- c("Extrap_ID", as.character(unique(new_covariate_data$Year)))
+    
+    # Come back to this and make it cleaner!!!
+    if(!set_re_zero){
+      for(i in 95:106){
+        col_match<- paste0("2015_", str_extract(names(eps1_wide)[i], "[A-Z]+" ))
+        eps1_wide[,i]<- eps1_wide[,{{col_match}}]
+      }
+    }
+    eps1_long<- eps1_wide %>%
+      pivot_longer(-Extrap_ID, names_to = "Model_Date", values_to = "epsilon1") %>%
+      mutate(., "Model_Date" = factor(Model_Date, levels = levels(new_covariate_data$Year))) %>%
+      arrange(Model_Date)
+    
+    eps2_wide<- data.frame("Extrap_ID" = preds_out_sp$Extrap_ID, eps2_proj)
+    colnames(eps2_wide)<- c("Extrap_ID", as.character(unique(new_covariate_data$Year)))
+    
+    if(!set_re_zero){
+      # Come back to this and make it cleaner!!!
+      for(i in 95:106){
+        col_match<- paste0("2015_", str_extract(names(eps2_wide)[i], "[A-Z]+" ))
+        eps2_wide[,i]<- eps2_wide[,{{col_match}}]
+      }
+    }
+  
+    eps2_long<- eps2_wide %>%
+      pivot_longer(-Extrap_ID, names_to = "Model_Date", values_to = "epsilon2") %>%
+      mutate(., "Model_Date" = factor(Model_Date, levels = levels(new_covariate_data$Year))) %>%
+      arrange(Model_Date)
+    
+    # Combine them
+    eps_out<- left_join(eps1_long, eps2_long)
+    
+    # Add to preds...
+    preds_out_full<- preds_out_full %>%
+      left_join(., eps_out, by = c("Extrap_ID" = "Extrap_ID", "Model_Date" = "Model_Date"))
+    
+    ## Habitat covariates using gridded environmental data
+    # For this, I think it is going to be easier to do the predictions and then supply those single eta1 and eta2 values to a simpler function
+    x1_covs<- vast_fit$ParHat[[{{"gamma1_cp"}}]]
+    colnames(x1_covs)<- attributes(vast_fit$data_list$X1_gctp)$dimnames[[4]]
+    x2_covs<- vast_fit$ParHat[[{{"gamma2_cp"}}]]
+    colnames(x2_covs)<- attributes(vast_fit$data_list$X2_gctp)$dimnames[[4]]
+    
+    # Create a model matrix
+    mod_mat<- model.matrix(object = vast_fit$X1_formula, data = new_covariate_data, contrasts.arg = list(Season = contrasts(new_covariate_data$Season, contrasts = FALSE), Year_Cov = contrasts(new_covariate_data$Year_Cov, contrasts = FALSE)))
+    
+    # Not necessary in this simple example, but matters when we have new years in the new_covariate_data
+    cols_keep<- colnames(mod_mat) %in% colnames(x1_covs)
+    mod_mat<- mod_mat[,cols_keep]
+    
+    # Generate predictions from covariate values and model matrix
+    preds_out_full$eta1<- as.numeric(t(as.vector(x1_covs) %*% t(mod_mat)))
+    preds_out_full$eta2<- as.numeric(t(as.vector(x2_covs) %*% t(mod_mat)))
+    
+    ## Make the calculations...
+    preds_out_full<- preds_out_full %>% 
+      mutate(., "P1" = omega1 + beta1 + epsilon1 + eta1,
+             "P2" = omega2 + beta2 + epsilon2 + eta2,
+             "R1" = 1- exp(-exp(P1)),
+             "R2" = (exp(P1)/R1) * exp(P2), 
+             "Dens" = R1*R2)
+    
+    # Save and return it
+    write.csv(preds_out_full, file = paste(out_dir, "/", nice_category_names, "_", pred_label, "_projections.csv", sep = ""))
+    return(preds_out_full)
+  }
+}
+
+vast_predict_idw<- function(vast_fit, manual_pred_df, grid_space_utm, nice_category_names, climate_scenario, all_times = all_times, out_dir, ...){
+  
+  if(FALSE){
+    vast_fit = readRDS("/Users/aallyn/Library/CloudStorage/Box-Box/Mills Lab/Projects/sdm_workflow/targets_output/mod_fits/American_lobster_STnoRW_fitted_vast.rds")
+    manual_pred_df = read.csv(paste0(res_root, "prediction_df/American_lobster_SSP5_85_mean_projections.csv"))
+    nice_category_names = "American_lobster"
+    climate_scenario = "SSP5_85_mean"
+    all_times = unique(manual_pred_df$Real_Date)
+    plot_times = NULL
+    grid_space_utm = 25000
+  }
+  
+  # We want a prediction grid...
+  mask_utm<- vast_mesh_to_sf(vast_fit)$triangles %>%
+    st_union() %>%
+    st_transform(., crs = 32619)
+  pred_grid<- mask_utm %>%
+    st_make_grid(., cellsize = grid_space_utm, what = "polygons", square = TRUE) 
+  
+  pred_grid2<- pred_grid %>%
+    st_intersection(., mask_utm)
+  
+  pred_idw_out_all<- vector("list", length = length(all_times))
+  
+  for (tI in seq_along(all_times)) {
+    time_use<- all_times[tI]
+    
+    data_df<- manual_pred_df %>%
+      dplyr::filter(., Real_Date == time_use) %>%
+      st_as_sf(., coords = c("Lon", "Lat"), crs = 4326, remove = FALSE) %>%
+      st_transform(., crs = 32619) %>%
+      dplyr::select(., Lon, Lat, Dens, geometry)
+    
+    pred_idw_sf<- idw(Dens ~ 1, data_df, pred_grid) %>%
+      mutate(., "Biomass" = var1.pred * 625,
+             "Log_Biomass" = log(Biomass + 1),
+             "Date" = time_use,
+             "Species" = nice_category_names,
+             "Climate_Scenario" = pred_label)
+    
+    pred_idw_temp<- pred_idw_sf %>%
+      dplyr::select(., x, y, Date, Species, Climate_Scenario, Biomass, Log_Biomass)
+    
+    na_ids<- seq(from = 1, to = nrow(pred_idw_sf))
+    intersect_list<- st_intersects(pred_idw_sf, mask_utm)
+    na_ids<- na_ids[-which(na_ids %in% unlist(t(intersect_list)))]
+    
+    pred_idw_temp$Biomass[na_ids]<- NA
+    pred_idw_temp$Log_Biomass[na_ids]<- NA
+    
+    pred_idw_temp<- pred_idw_temp %>%
+      st_drop_geometry(.)
+    
+    pred_idw_out_all[[tI]]<- pred_idw_temp
+  }
+  
+  # Save and return that
+  pred_idw_out<- do.call("rbind", pred_idw_out_all)
+  write.csv(pred_idw_out, file = paste0(out_dir, nice_category_names, "_", climate_scenario, "_idw_predictions.csv"))
+  return(pred_idw_out)
+}
+
+pred_idw_to_ncdf<- function(pred_idw_list, nice_category_names, climate_scenario, out_dir){
+  # Into a dataframe...
+  pred_idw_wide<- do.call("rbind", pred_idw_out_all) %>%
+    dplyr::select(., -Log_Biomass) %>%
+    pivot_wider(., names_from = Date, values_from = Biomass )
+  
+  # NetCDF bits
+  lon<- pred_idw_wide$x
+  lat<- pred_idw_wide$y
+  time<- seq(from = 1, to = length(all_times))-1
+  tunits<- "Year-season since spring 1985"
+  
+  nlon<- length(lon)
+  nlat<- length(lat)
+  ntime<- length(time)
+  
+  bio_mat<- as.matrix(pred_idw_wide[5:(5+ntime-1)])
+  bio_array<- array(bio_mat, dim = c(nlon, nlat, ntime))
+  
+  ncpath<- out_dir
+  ncname<- paste(nice_category_names, "_", climate_scenario, "_ncdf4", sep = "")
+  ncfname<- paste(ncpath, ncname, ".nc", sep="")
+  dname<- "biomass"
+  
+  # define dimensions
+  londim<- ncdim_def("lon", "degrees_east_crs_32619", as.double(lon)) 
+  latdim<- ncdim_def("lat", "degrees_north_crs_32619", as.double(lat)) 
+  timedim<- ncdim_def("time", tunits, as.double(time))
+  
+  # define variables
+  fillvalue <- 1e32
+  dlname <- "Predicted biomass"
+  bio_def <- ncvar_def("biomass", "kg", list(londim,latdim,timedim), fillvalue, dlname, prec="single")
+  
+  # Create netCDF and put in arrays
+  ncout<- nc_create(ncfname, list(bio_def), force_v4 = TRUE)
+  
+  # put variables
+  ncvar_put(ncout, bio_def, bio_array)
+  
+  # put additional attributes into dimension and data variables
+  ncatt_put(ncout, "lon", "axis", "X") #,verbose=FALSE) #,definemode=FALSE)
+  ncatt_put(ncout, "lat", "axis", "Y")
+  ncatt_put(ncout, "time", "axis", "T")
+  
+  # add global attributes
+  ncatt_put(ncout,0, "title", "SDM Workflow VAST model predicted biomass")
+  ncatt_put(ncout,0, "institution", "Gulf of Maine Research Institute")
+  #ncatt_put(ncout,0,"source",datasource$value)
+  #ncatt_put(ncout,0,"references",references$value)
+  history <- paste("Andrew Allyn", date(), sep=", ")
+  ncatt_put(ncout, 0, "history", history)
+  #ncatt_put(ncout,0, "Conventions", Conventions$value)
+  
+  # Get a summary of the created file:
+  nc_close(ncout)
+}
+
 
 if(FALSE){
   # JSDM factors

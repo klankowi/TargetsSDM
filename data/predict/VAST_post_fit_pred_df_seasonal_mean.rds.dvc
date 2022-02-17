@@ -1,0 +1,4 @@
+outs:
+- md5: e48be4e52030cf6802a59f7380306eb4
+  size: 6420922
+  path: VAST_post_fit_pred_df_seasonal_mean.rds

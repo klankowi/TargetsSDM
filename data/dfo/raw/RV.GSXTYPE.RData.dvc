@@ -1,4 +1,4 @@
 outs:
 - md5: ee5eabc9608ce64e8ef81b26cd7897c0
   size: 346
-  path: RV.GSXTYPE.RData
+  path: RV.GSXTYPE.Rdata
