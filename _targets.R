@@ -98,6 +98,19 @@ region_shapefile_mk_dir <- function() {
 # Targets list of commands
 list(
 
+  # Species table directory
+  tar_target(
+    name = species_table,
+    command = species_table_mk_dir(),
+    format = "file",
+  ),
+
+  # Species table load
+  tar_target(
+    name = species,
+    command = species_read_csv(species_table),
+  ),
+
 
   # Land sf file
   tar_target(
