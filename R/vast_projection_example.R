@@ -7,10 +7,11 @@
 
 # Preliminaries -----------------------------------------------------------
 library(tidyverse)
+
 library(VAST)
 
 # Run for the first time? This is the seasonal wiki example
-first_run <- FALSE
+first_run <- TRUE
 
 if (first_run) {
   # Load data and quick exploration of structure

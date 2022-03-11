@@ -2,6 +2,7 @@
 ##### Executing _targets.R
 ##########
 library(targets)
+library(tarchetypes)
 library(parallel)
 library(doFuture)
 library(tictoc)
@@ -11,15 +12,15 @@ options(tidyverse.quiet = TRUE)
 tar_option_set(packages = c("Matrix", "TMB", "FishStatsUtils", "VAST", "tidyverse", "lubridate", "sf", "raster", "here", "tools"))
 
 # Clean everything?
-clean_start<- TRUE
-if(clean_start){
+clean_start <- TRUE
+if (clean_start) {
   tar_destroy()
 }
 
 # Trying to leverage more compute cores
-# cores_avail<- detectCores()
-# registerDoFuture()
-# plan(multisession, workers = cores_avail-2)
+cores_avail <- detectCores()
+registerDoFuture()
+plan(multisession, workers = cores_avail - 3)
 
 # Checking calls
 tar_manifest(fields = "command")
@@ -32,5 +33,3 @@ tar_manifest(fields = "command")
 tic()
 tar_make()
 toc()
-
-
