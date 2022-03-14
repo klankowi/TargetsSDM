@@ -41,7 +41,7 @@ fit_year_max <- 2015
 fit_seasons <- c("SPRING", "SUMMER", "FALL")
 pred_years <- 2019
 pred_year_max <- 2019
-n_sims <- 25
+n_sims <- 1
 n_proj <- 243
 gam_degree <- 2
 nice_times <- as.Date(c(paste0(seq(from = 1985, to = 2100, by = 1), "-03-16"), paste0(seq(from = 1985, to = 2100, by = 1), "-07-16"), paste0(seq(from = 1985, to = 2100, by = 1), "-10-16")))
@@ -514,23 +514,23 @@ list(
   # Make post fit projections with "new" covariate data
   tar_target(
     name = vast_projections,
-    command = project.fit_model_wrapper(n_sims = n_sims, sim_type = 1, vast_fit = vast_fit, time_cov = "Year_Cov", index_shapes = index_shapefiles, historical_uncertainty = "random", n_samples = 1, n_proj = n_proj, new_covariate_data = vast_pred_df_post_fit, new_catchability_data = NULL, proj_objects = proj_objects, seed = 123456, nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df"))
+    command = project.fit_model_wrapper(n_sims = n_sims, sim_type = 1, vast_fit = vast_fit, time_cov = "Year_Cov", time_cov_method = "AR1", index_shapes = index_shapefiles, historical_uncertainty = "none", n_samples = 1, n_proj = n_proj, new_covariate_data = vast_pred_df_post_fit, new_catchability_data = NULL, proj_objects = proj_objects, seed = 123456, nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df"))
   ),
 
   # Summarize VAST projections
   tar_target(
     name = vast_projection_summ_index,
-    command = summary.sim_results(vast_fit = vast_fit, sim_obj = vast_projections, what = "Index_ctl", nice_times = nice_times, probs = c(0.1, 0.5, 0.9), mean_instead = FALSE, nice_category_names = nice_category_names, climate_scenario = climate_scenario, out_dir = paste0(res_root, "prediction_df"))
+    command = summary.sim_results(vast_fit = vast_fit, sim_obj = vast_projections, what = "Index_ctl", nice_times = nice_times, out_t_scale = "annual", probs = c(0.1, 0.5, 0.9), mean_instead = FALSE, nice_category_names = nice_category_names, climate_scenario = climate_scenario, out_dir = paste0(res_root, "prediction_df"))
   ),
   tar_target(
     name = vast_projection_summ_dens,
-    command = summary.sim_results(vast_fit = vast_fit, sim_obj = vast_projections, what = "D_gct", nice_times = nice_times, probs = c(0.1, 0.5, 0.9), mean_instead = FALSE, nice_category_names = nice_category_names, climate_scenario = climate_scenario, out_dir = paste0(res_root, "prediction_df"))
+    command = summary.sim_results(vast_fit = vast_fit, sim_obj = vast_projections, what = "D_gct", nice_times = nice_times, out_t_scale = NULL, probs = c(0.1, 0.5, 0.9), mean_instead = FALSE, nice_category_names = nice_category_names, climate_scenario = climate_scenario, out_dir = paste0(res_root, "prediction_df"))
   ),
 
   # Plot projected index results
   tar_target(
     name = proj_index_plot,
-    command = plot_vast_projected_index(vast_projections = vast_projection_summ_index, year_stop = NULL, index_scale = "log", nice_category_names = nice_category_names, climate_scenario = climate_scenario, nice_times = nice_times, region_keep = c("DFO", "NMFS", "GoM", "SNE_and_MAB"), nice_xlab = "Date", nice_ylab = "Log biomass index", paneling = "none", color_pal = NULL, out_dir = paste0(res_root, "plots_maps"))
+    command = plot_vast_projected_index(vast_projections = vast_projection_summ_index, year_stop = NULL, index_scale = "log", nice_category_names = nice_category_names, climate_scenario = climate_scenario, nice_times = nice_times, region_keep = c("DFO", "NMFS", "GoM", "SNE_and_MAB"), nice_xlab = "Date", nice_ylab = "Log biomass index", plot_error_bars = FALSE, paneling = "none", color_pal = NULL, out_dir = paste0(res_root, "plots_maps"))
   ),
 
   # Plot projected density results

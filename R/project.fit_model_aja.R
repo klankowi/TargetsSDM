@@ -52,11 +52,11 @@ pad_list_notXi_element <- function(x, pad_dim, pad_value = 0, pad_times = n_proj
 
 pad_list_Xi_element <- function(x, pad_dim, pad_value, pad_start = time_cov_start, pad_times = time_cov_add) {
   if (FALSE) {
-    pad_vars <- c("Xiinput1_scp")
+    pad_vars <- c("gamma1_cp")
     x <- ParList[[pad_vars]]
-    pad_dim <- 3
-    pad_value <- mean(ParList$gamma1_cp[gamma_mean_start:gamma_mean_end])
-    pad_value <- 0
+    pad_dim <- 2
+    pad_value <- pad_value
+    # pad_value <- 0
     pad_start <- time_cov_start
     pad_times <- time_cov_add
   }
@@ -77,16 +77,23 @@ pad_list_Xi_element <- function(x, pad_dim, pad_value, pad_start = time_cov_star
     if (nrow(x) < ncol(x)) {
       # Just appending to the "end"
       if (pad_start >= dim(x)[2]) {
-        out_list_element <- matrix(c(x[1:(pad_start - 1)], rep(pad_value, pad_times)), nrow = 1)
+        if (length(pad_value) == 1) {
+          out_list_element <- matrix(c(x[1:(pad_start - 1)], rep(pad_value, pad_times)), nrow = 1)
+        } else {
+          out_list_element <- matrix(c(x[1:(pad_start - 1)], pad_value), nrow = 1)
+        }
       } else {
         # "Inserting" work in progress...
-        out_list_element <- matrix(c(x[, 1:(pad_start - 1)], rep(pad_value, pad_times), x[, pad_start:ncol(x)]), nrow = 1)
+        if (length(pad_value) == 1) {
+          out_list_element <- matrix(c(x[, 1:(pad_start - 1)], rep(pad_value, pad_times), x[, pad_start:ncol(x)]), nrow = 1)
+        } else {
+          out_list_element <- matrix(c(x[, 1:(pad_start - 1)], pad_value, x[, pad_start:ncol(x)]), nrow = 1)
+        }
       }
     }
   }
   return(out_list_element)
 }
-
 # Designing a projection function
 #' @title Project density from fitted VAST model.
 #'
@@ -104,7 +111,7 @@ pad_list_Xi_element <- function(x, pad_dim, pad_value, pad_start = time_cov_star
 #'
 #' @export
 
-project.fit_model <- function(sim_type = 1, x, time_cov, index_shapes, historical_uncertainty = "both", n_samples, n_proj, new_covariate_data = NULL, new_catchability_data = NULL, proj_X_contrasts = NULL, proj_X1_config = NULL, proj_X2_config = NULL, proj_map = NULL, seed = 123456) {
+project.fit_model <- function(sim_type = 1, x, time_cov, time_cov_method, index_shapes, historical_uncertainty = "both", n_samples, n_proj, new_covariate_data = NULL, new_catchability_data = NULL, proj_X_contrasts = NULL, proj_X1_config = NULL, proj_X2_config = NULL, proj_map = NULL, seed = 123456) {
 
   # For debugging
   if (FALSE) {
@@ -113,15 +120,23 @@ project.fit_model <- function(sim_type = 1, x, time_cov, index_shapes, historica
     tar_load(vast_fit)
     x <- vast_fit
     time_cov <- "Year_Cov"
+    time_cov_method <- "AR1"
     tar_load(index_shapefiles)
     index_shapes <- index_shapefiles
-    historical_uncertainty <- "random"
+    historical_uncertainty <- "none"
     n_samples <- 1
     n_proj <- 243
     # new_covariate_data <- new_projection_data
     pred_covs_out_final <- readRDS("~/GitHub/TargetsSDM/data/predict/VAST_post_fit_pred_df_seasonal_mean.rds")
     new_covariate_data <- pred_covs_out_final
     new_catchability_data <- NULL
+    tar_load(proj_objects)
+    proj_X_contrasts <- proj_objects[["proj_X_contrasts"]]
+    proj_X1_config <- proj_objects[["proj_X1_config"]]
+    proj_X2_config <- proj_objects[["proj_X2_config"]]
+    proj_map <- proj_objects[["proj_map"]]
+
+    seed <- 1
 
     # sim_type <- 1
     # x <- fit
@@ -138,34 +153,34 @@ project.fit_model <- function(sim_type = 1, x, time_cov, index_shapes, historica
     # seed <- rI
   }
 
-  #####
-  ## Should be able to delete this...
-  #####
-  # Load package
-  library(VAST)
+  # #####
+  # ## Should be able to delete this...
+  # #####
+  # # Load package
+  # library(VAST)
 
-  # load data set
-  # see `?load_example` for list of stocks with example data
-  # that are installed automatically with `FishStatsUtils`.
-  example <- load_example(data_set = "EBS_pollock")
+  # # load data set
+  # # see `?load_example` for list of stocks with example data
+  # # that are installed automatically with `FishStatsUtils`.
+  # example <- load_example(data_set = "EBS_pollock")
 
-  # Make settings (turning off bias.correct to save time for example)
-  settings <- make_settings(
-    n_x = 100,
-    Region = example$Region,
-    purpose = "index2",
-    bias.correct = FALSE
-  )
+  # # Make settings (turning off bias.correct to save time for example)
+  # settings <- make_settings(
+  #   n_x = 100,
+  #   Region = example$Region,
+  #   purpose = "index2",
+  #   bias.correct = FALSE
+  # )
 
-  # Run model
-  fit <- fit_model(
-    settings = settings,
-    Lat_i = example$sampling_data[, "Lat"],
-    Lon_i = example$sampling_data[, "Lon"],
-    t_i = example$sampling_data[, "Year"],
-    b_i = example$sampling_data[, "Catch_KG"],
-    a_i = example$sampling_data[, "AreaSwept_km2"], run_model = FALSE
-  )
+  # # Run model
+  # fit <- fit_model(
+  #   settings = settings,
+  #   Lat_i = example$sampling_data[, "Lat"],
+  #   Lon_i = example$sampling_data[, "Lon"],
+  #   t_i = example$sampling_data[, "Year"],
+  #   b_i = example$sampling_data[, "Catch_KG"],
+  #   a_i = example$sampling_data[, "AreaSwept_km2"], run_model = FALSE
+  # )
 
   #####
   ## Sanity checks
@@ -291,15 +306,35 @@ project.fit_model <- function(sim_type = 1, x, time_cov, index_shapes, historica
   # Xiinput1/2_scp (pad with 0) [1:304, 1, 1:21] 3rd dimension
   # All of them have "time" as the last dimension, which simplifies things a bit...maybe
   if (!is.null(time_cov)) {
+    gamma_mean_start <- length(unique(x$covariate_data$Season)) + length(unique(x$covariate_data$Year_Cov)) - 5
     gamma_mean_end <- length(unique(x$covariate_data$Season)) + length(unique(x$covariate_data$Year_Cov))
-    gamma_mean_start <- length(unique(x$covariate_data$Season)) + length(unique(x$covariate_data$Year_Cov))
 
     # gamma1/2_cp (pad with 0) [1, 1:21] 2nd dimension
     pad_vars <- c("gamma1_cp")
-    ParList[pad_vars] <- lapply(ParList[pad_vars], FUN = pad_list_Xi_element, pad_dim = 2, pad_value = mean(ParList$gamma1_cp[gamma_mean_start:gamma_mean_end]), pad_start = time_cov_start, pad_times = time_cov_add)
+    if (time_cov_method == "zeroes") {
+      pad_value <- 0
+    }
+    if (time_cov_method == "average") {
+      pad_value <- mean(ParList$gamma1_cp[gamma_mean_start:gamma_mean_end])
+    }
+    if (time_cov_method == "AR1") {
+      ar_mod <- arima(as.numeric(ParList$gamma1_cp[4:gamma_mean_start]), order = c(1, 0, 0))
+      pad_value <- as.numeric(predict(ar_mod, n.ahead = time_cov_add)$pred)
+    }
+    ParList[pad_vars] <- lapply(ParList[pad_vars], FUN = pad_list_Xi_element, pad_dim = 2, pad_value = pad_value, pad_start = time_cov_start, pad_times = time_cov_add)
 
     pad_vars <- c("gamma2_cp")
-    ParList[pad_vars] <- lapply(ParList[pad_vars], FUN = pad_list_Xi_element, pad_dim = 2, pad_value = mean(ParList$gamma1_cp[gamma_mean_start:gamma_mean_end]), pad_start = time_cov_start, pad_times = time_cov_add)
+    if (time_cov_method == "zeroes") {
+      pad_value <- 0
+    }
+    if (time_cov_method == "average") {
+      pad_value <- mean(ParList$gamma2_cp[gamma_mean_start:gamma_mean_end])
+    }
+    if (time_cov_method == "AR1") {
+      ar_mod <- arima(as.numeric(ParList$gamma2_cp[4:gamma_mean_start]), order = c(1, 0, 0))
+      pad_value <- as.numeric(predict(ar_mod, n.ahead = time_cov_add)$pred)
+    }
+    ParList[pad_vars] <- lapply(ParList[pad_vars], FUN = pad_list_Xi_element, pad_dim = 2, pad_value = pad_value, pad_start = time_cov_start, pad_times = time_cov_add)
 
     # log_sigmaXi1/2_cp (pad with parList last value, assume fixed in the future) [1, 1:21] 2nd dimension
     pad_vars <- c("log_sigmaXi1_cp")
@@ -412,16 +447,19 @@ project.fit_model <- function(sim_type = 1, x, time_cov, index_shapes, historica
 #' @return A dataframe with location and time information for each sample in `new_projection_data` and the projected \code{what} output variable prob results.
 #'
 #' @export
-summary.sim_results <- function(vast_fit, sim_obj, what, nice_times = NULL, probs = c(0.1, 0.5, 0.9), mean_instead = FALSE, nice_category_names = nice_category_names, climate_scenario = climate_scenario, out_dir) {
+summary.sim_results <- function(vast_fit, sim_obj, what, nice_times = NULL, out_t_scale = NULL, probs = c(0.1, 0.5, 0.9), mean_instead = FALSE, nice_category_names = nice_category_names, climate_scenario = climate_scenario, out_dir) {
   if (FALSE) {
     tar_load(vast_fit)
     tar_load(vast_projections)
     sim_obj <- vast_projections
-    what <- "D_gct"
+    what <- "Index_ctl"
+    nice_times <- nice_times
+    out_t_scale <- "annual"
     probs <- c(0.1, 0.5, 0.9)
-    nice_times <- seq(as.Date("1980-06-15"), as.Date("2092-06-15"), by = "year")
-    nice_times <- seq(from = 1, to = sim_obj[[1]]$n_t)
     mean_instead <- FALSE
+    nice_category_names <- nice_category_names
+    climate_scenario <- climate_scenario
+    out_dir <- paste0(res_root, "prediction_df")
   }
 
   # Some general stuff
@@ -456,7 +494,7 @@ summary.sim_results <- function(vast_fit, sim_obj, what, nice_times = NULL, prob
       if (i == 1) {
         res_out <- temp_df
       } else {
-        res_out<- bind_rows(res_out, temp_df)
+        res_out <- bind_rows(res_out, temp_df)
       }
     }
 
@@ -479,34 +517,57 @@ summary.sim_results <- function(vast_fit, sim_obj, what, nice_times = NULL, prob
       if (i == 1) {
         res_out <- temp_df
       } else {
-        res_out<- bind_rows(res_out, temp_df)
+        res_out <- bind_rows(res_out, temp_df)
       }
     }
   }
 
   # Wide to long for "Index_ctl"
   if (what == "Index_ctl") {
-    res_out <- res_out %>%
-      pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index") %>%
-      group_by(., Time, Region) %>%
-      summarise(
-        Prob_0.5 = quantile(Index, probs = 0.50),
-        Prob_0.1 = quantile(Index, probs = 0.1),
-        Prob_0.9 = quantile(Index, probs = 0.9)
-      )
+    # Annual average?
+    if (!is.null(out_t_scale)) {
+      res_out <- res_out %>%
+        pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index") %>%
+        mutate(., Time = ymd(as.numeric(format(Time, "%Y")), truncated = 2L)) %>%
+        group_by(., Time, Region) %>%
+        summarise(
+          Prob_0.5 = quantile(Index, probs = 0.50),
+          Prob_0.1 = quantile(Index, probs = 0.1),
+          Prob_0.9 = quantile(Index, probs = 0.9)
+        )
+    } else {
+      res_out <- res_out %>%
+        pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index") %>%
+        group_by(., Time, Region) %>%
+        summarise(
+          Prob_0.5 = quantile(Index, probs = 0.50),
+          Prob_0.1 = quantile(Index, probs = 0.1),
+          Prob_0.9 = quantile(Index, probs = 0.9)
+        )
+    }
   }
-  
+
   if (what == "D_gct") {
-    res_out <- res_out %>%
-      group_by(., Lat, Lon, Time) %>%
-      summarise(
-        Prob_0.5 = quantile(D_gct, probs = 0.50),
-        Prob_0.1 = quantile(D_gct, probs = 0.1),
-        Prob_0.9 = quantile(D_gct, probs = 0.9)
-      )
+    # Annual average?
+    if (!is.null(out_t_scale)) {
+      res_out <- res_out %>%
+        mutate(., Time = ymd(as.numeric(format(Time, "%Y")), truncated = 2L)) %>%
+        group_by(., Time, Region) %>%
+        summarise(
+          Prob_0.5 = quantile(Index, probs = 0.50)
+        )
+    } else {
+      res_out <- res_out %>%
+        group_by(., Lat, Lon, Time) %>%
+        summarise(
+          Prob_0.5 = quantile(D_gct, probs = 0.50),
+          Prob_0.1 = quantile(D_gct, probs = 0.1),
+          Prob_0.9 = quantile(D_gct, probs = 0.9)
+        )
+    }
   }
-  
-  
+
+
   # Save and return it
   saveRDS(res_out, file = paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_", what, ".rds"))
   return(res_out)
@@ -570,4 +631,3 @@ simulate_data.aja <- function(fit, type = 1, par_use, joint_prec = NULL, random_
   }
   return(Return)
 }
-

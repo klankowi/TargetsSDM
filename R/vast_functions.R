@@ -1688,13 +1688,14 @@ make_vast_proj_objects <- function(vast_fit = vast_fit, pred_covs_out_final = va
   return(proj_obs_out)
 }
 
-project.fit_model_wrapper <- function(n_sims = n_sims, sim_type = 1, vast_fit = vast_fit, time_cov = "Year_Cov", index_shapes = index_shapefiles, historical_uncertainty = "none", n_samples = 1, n_proj = n_proj, new_covariate_data = vast_pred_df_post_fit, new_catchability_data = NULL, proj_objects = proj_objects, seed = 123456, nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df")) {
+project.fit_model_wrapper <- function(n_sims = n_sims, sim_type = 1, vast_fit = vast_fit, time_cov = "Year_Cov", time_cov_method = time_cov_method, index_shapes = index_shapefiles, historical_uncertainty = "none", n_samples = 1, n_proj = n_proj, new_covariate_data = vast_pred_df_post_fit, new_catchability_data = NULL, proj_objects = proj_objects, seed = 123456, nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df")) {
   sim_res <- vector("list", length = n_sims)
   for (rI in 1:n_sims) {
     sim_res[[rI]] <- project.fit_model(
       sim_type = sim_type,
       x = vast_fit,
       time_cov = time_cov,
+      time_cov_method = time_cov_method,
       index_shapes = index_shapes,
       historical_uncertainty = historical_uncertainty,
       n_samples = 1,
@@ -2418,12 +2419,13 @@ plot_vast_index_timeseries <- function(index_res_df, year_stop = NULL, index_sca
   return(plot_out)
 }
 
-plot_vast_projected_index <- function(vast_projections, year_stop = NULL, index_scale, nice_category_names = nice_category_names, climate_scenario = climate_scenario, nice_times = nice_times, region_keep = c("DFO", "NMFS", "GoM", "SNE_and_MAB"), nice_xlab, nice_ylab, paneling = c("category", "index_region", "none"), color_pal = c("#66c2a5", "#fc8d62", "#8da0cb"), out_dir) {
+plot_vast_projected_index <- function(vast_projections, year_stop = NULL, index_scale, nice_category_names = nice_category_names, climate_scenario = climate_scenario, nice_times = nice_times, region_keep = c("DFO", "NMFS", "GoM", "SNE_and_MAB"), nice_xlab, nice_ylab, plot_error_bars = FALSE, paneling = c("category", "index_region", "none"), color_pal = c("#66c2a5", "#fc8d62", "#8da0cb"), out_dir) {
   if (FALSE) {
     tar_load(vast_projection_summ_index)
     vast_projections <- vast_projection_summ_index
+    vast_projections <- res_out
     year_stop <- NULL
-    index_scale <- "raw"
+    index_scale <- "log"
     nice_category_names <- nice_category_names
     climate_scenario <- climate_scenario
     nice_times <- nice_times
@@ -2464,18 +2466,33 @@ plot_vast_projected_index <- function(vast_projections, year_stop = NULL, index_
 
     # Date axis
     date_breaks <- seq.Date(from = as.Date(paste(min(index_res_df$Time), "06-15", sep = "-")), to = as.Date(paste(max(index_res_df$Time), "06-15", sep = "-")), by = "5 years")
-    plot_out <- ggplot() +
-      geom_errorbar(data = index_res_df, aes(x = Time, ymin = Prob_0.1, ymax = Prob_0.9, color = Region, group = Region), alpha = 0.65) +
-      # geom_point(data = index_res_df, aes(x = Time, y = Prob_0.5, color = Region)) +
-      geom_line(data = index_res_df, aes(x = Time, y = Prob_0.5, color = Region)) +
-      scale_color_manual(values = colors_use) +
-      scale_x_date(breaks = date_breaks, date_labels = "%Y") +
-      xlab({{ nice_xlab }}) +
-      ylab({{ nice_ylab }}) +
-      ggtitle({{ nice_category_names }}) +
-      theme_bw() +
-      theme(legend.title = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-      facet_wrap(~Region)
+    if (plot_error_bars) {
+      plot_out <- ggplot() +
+        geom_errorbar(data = index_res_df, aes(x = Time, ymin = Prob_0.1, ymax = Prob_0.9, color = Region, group = Region), alpha = 0.65) +
+        # geom_point(data = index_res_df, aes(x = Time, y = Prob_0.5, color = Region)) +
+        geom_line(data = index_res_df, aes(x = Time, y = Prob_0.5, color = Region)) +
+        scale_color_manual(values = colors_use) +
+        scale_x_date(breaks = date_breaks, date_labels = "%Y") +
+        xlab({{ nice_xlab }}) +
+        ylab({{ nice_ylab }}) +
+        ggtitle({{ nice_category_names }}) +
+        theme_bw() +
+        theme(legend.title = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+        facet_wrap(~Region)
+    } else {
+      plot_out <- ggplot() +
+        # geom_errorbar(data = index_res_df, aes(x = Time, ymin = Prob_0.1, ymax = Prob_0.9, color = Region, group = Region), alpha = 0.65) +
+        geom_point(data = index_res_df, aes(x = Time, y = Prob_0.5, color = Region)) +
+        geom_line(data = index_res_df, aes(x = Time, y = Prob_0.5, color = Region)) +
+        scale_color_manual(values = colors_use) +
+        scale_x_date(breaks = date_breaks, date_labels = "%Y") +
+        xlab({{ nice_xlab }}) +
+        ylab({{ nice_ylab }}) +
+        ggtitle({{ nice_category_names }}) +
+        theme_bw() +
+        theme(legend.title = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+        facet_wrap(~Region)
+    }
   }
 
   # Save and return the plot
