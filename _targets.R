@@ -33,8 +33,8 @@ source(here::here("R/project.fit_model_aja.R"))
 sf_use_s2(FALSE)
 
 # Model fitting stuffs
-nmfs_species_code <- 301
-nice_category_names <- "American_lobster_GD2_BetaRW_EpsIIDRED_Temp"
+nmfs_species_code <- 101
+nice_category_names <- "Atlantic_halibut_GD2_BetaRW_EpsIIDRED_Temp"
 depth_cut <- 400
 fit_year_min <- 1985
 fit_year_max <- 2015
@@ -514,7 +514,7 @@ list(
   # Make post fit projections with "new" covariate data
   tar_target(
     name = vast_projections,
-    command = project.fit_model_wrapper(n_sims = n_sims, sim_type = 1, vast_fit = vast_fit, time_cov = "Year_Cov", time_cov_method = "AR1", index_shapes = index_shapefiles, historical_uncertainty = "none", n_samples = 1, n_proj = n_proj, new_covariate_data = vast_pred_df_post_fit, new_catchability_data = NULL, proj_objects = proj_objects, seed = 123456, nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df"))
+    command = project.fit_model_wrapper(n_sims = n_sims, sim_type = 1, vast_fit = vast_fit, time_cov = "Year_Cov", time_cov_method = "linear", index_shapes = index_shapefiles, historical_uncertainty = "none", n_samples = 1, n_proj = n_proj, new_covariate_data = vast_pred_df_post_fit, new_catchability_data = NULL, proj_objects = proj_objects, seed = 123456, nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df"))
   ),
 
   # Summarize VAST projections

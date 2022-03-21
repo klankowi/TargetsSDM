@@ -321,6 +321,12 @@ project.fit_model <- function(sim_type = 1, x, time_cov, time_cov_method, index_
       ar_mod <- arima(as.numeric(ParList$gamma1_cp[4:gamma_mean_start]), order = c(1, 0, 0))
       pad_value <- as.numeric(predict(ar_mod, n.ahead = time_cov_add)$pred)
     }
+    if (time_cov_method == "linear") {
+      dat <- data.frame("X" = seq(from = 1, length(unique(x$covariate_data$Year_Cov))), "Y" = ParList$gamma1_cp[4:(length(unique(x$covariate_data$Season)) + length(unique(x$covariate_data$Year_Cov)) + length(unique(x$covariate_data$Year_Cov)))])
+      lm_mod <- lm(Y ~ X, data = dat)
+      pad_value <- as.numeric(predict(lm_mod, newdata = data.frame("X" = seq(from = 35, to = 35 + time_cov_add))))
+    }
+            
     ParList[pad_vars] <- lapply(ParList[pad_vars], FUN = pad_list_Xi_element, pad_dim = 2, pad_value = pad_value, pad_start = time_cov_start, pad_times = time_cov_add)
 
     pad_vars <- c("gamma2_cp")
@@ -333,6 +339,11 @@ project.fit_model <- function(sim_type = 1, x, time_cov, time_cov_method, index_
     if (time_cov_method == "AR1") {
       ar_mod <- arima(as.numeric(ParList$gamma2_cp[4:gamma_mean_start]), order = c(1, 0, 0))
       pad_value <- as.numeric(predict(ar_mod, n.ahead = time_cov_add)$pred)
+    }
+    if (time_cov_method == "linear") {
+      dat <- data.frame("X" = seq(from = 1, length(unique(x$covariate_data$Year_Cov))), "Y" = ParList$gamma2_cp[4:(length(unique(x$covariate_data$Season)) + length(unique(x$covariate_data$Year_Cov)) + length(unique(x$covariate_data$Year_Cov)))])
+      lm_mod <- lm(Y ~ X, data = dat)
+      pad_value <- as.numeric(predict(lm_mod, newdata = data.frame("X" = seq(from = 35, to = 35 + time_cov_add))))
     }
     ParList[pad_vars] <- lapply(ParList[pad_vars], FUN = pad_list_Xi_element, pad_dim = 2, pad_value = pad_value, pad_start = time_cov_start, pad_times = time_cov_add)
 

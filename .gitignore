@@ -29,3 +29,15 @@ docs/.nojekyll
 .profile
 
 /Kmeans_knots-400.RData
+data/combined/all_tows.rds
+data/combined/all_tows_with_static_covs_sf.rds
+data/combined/tidy_mod_data.rds
+data/combined/vast_catchability_data.rds
+data/combined/vast_covariate_data.rds
+data/combined/vast_data.rds
+data/combined/vast_sample_data.rds
+Kmeans_knots-100.RData
+packageDescription.txt
+parameter_estimates.RData
+parameter_estimates.txt
+settings.txt
