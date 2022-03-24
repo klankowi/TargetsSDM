@@ -34,7 +34,7 @@ sf_use_s2(FALSE)
 
 # Model fitting stuffs
 nmfs_species_code <- 101
-nice_category_names <- "Atlantic_halibut_GD2_BetaRW_EpsIIDRED_Temp"
+nice_category_names <- "Atlantic_halibut_GD2_BetaRW_NoST_Temp"
 depth_cut <- 400
 fit_year_min <- 1985
 fit_year_max <- 2015
@@ -51,8 +51,8 @@ nice_times <- nice_times[order(nice_times)]
 hab_formula <- ~ Season + Year_Cov + bs(Depth, degree = 2, intercept = FALSE) + bs(SST_seasonal, degree = 2, intercept = FALSE) + bs(BT_seasonal, degree = 2, intercept = FALSE) # Seasonal
 hab_env_coeffs_n <- length(attributes(terms.formula(hab_formula))$term.labels) - 2 # Seasonal
 # hab_env_coeffs_n <- length(attributes(terms.formula(hab_formula))$term.labels) - 1 # Seasonal
-field_config <- c("Omega1" = 1, "Epsilon1" = 1, "Omega2" = 1, "Epsilon2" = 1)
-rho_config <- c("Beta1" = 2, "Beta2" = 2, "Epsilon1" = 1, "Epsilon2" = 1)
+field_config <- c("Omega1" = 1, "Epsilon1" = 1, "Omega2" = 1, "Epsilon2" = 0)
+rho_config <- c("Beta1" = 2, "Beta2" = 2, "Epsilon1" = 0, "Epsilon2" = 0)
 # field_config <- c("Omega1" = 0, "Epsilon1" = 0, "Omega2" = 0, "Epsilon2" = 0)
 # rho_config <- c("Beta1" = 2, "Beta2" = 2, "Epsilon1" = 0, "Epsilon2" = 0)
 bias_correct_use <- TRUE
