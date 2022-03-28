@@ -138,6 +138,26 @@ project.fit_model <- function(sim_type = 1, x, time_cov, time_cov_method, index_
 
     seed <- 1
 
+    sim_type <- sim_type
+    x <- vast_fit
+    time_cov <- time_cov
+    time_cov_method <- time_cov_method
+    tar_load(index_shapefiles)
+    index_shapes <- index_shapefiles
+    historical_uncertainty <- historical_uncertainty
+    n_samples <- 1
+    n_proj <- n_proj
+    tar_load(vast_post_fit_pred_df)
+    new_covariate_data <- new_covariate_data
+    new_covariate_data <- new_covariate_data %>%
+      filter(., Year <= 107)
+    new_catchability_data <- NULL
+    proj_X_contrasts <- proj_objects[["proj_X_contrasts"]]
+    proj_X1_config <- proj_objects[["proj_X1_config"]]
+    proj_X2_config <- proj_objects[["proj_X2_config"]]
+    proj_map <- proj_objects[["proj_map"]]
+    seed <- rI
+
     # sim_type <- 1
     # x <- fit
     # time_cov <- NULL
@@ -326,7 +346,7 @@ project.fit_model <- function(sim_type = 1, x, time_cov, time_cov_method, index_
       lm_mod <- lm(Y ~ X, data = dat)
       pad_value <- as.numeric(predict(lm_mod, newdata = data.frame("X" = seq(from = 35, to = 35 + time_cov_add))))
     }
-            
+
     ParList[pad_vars] <- lapply(ParList[pad_vars], FUN = pad_list_Xi_element, pad_dim = 2, pad_value = pad_value, pad_start = time_cov_start, pad_times = time_cov_add)
 
     pad_vars <- c("gamma2_cp")

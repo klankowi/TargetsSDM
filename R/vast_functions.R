@@ -1654,23 +1654,41 @@ vast_post_fit_pred_df <- function(predict_covariates_stack_agg_dir, extra_covari
   return(pred_covs_out_final)
 }
 
-make_vast_proj_objects <- function(vast_fit = vast_fit, pred_covs_out_final = vast_pred_df_post_fit, gam_degree = gam_degree, hab_env_coeffs_n = hab_env_coeffs_n) {
+make_vast_proj_objects <- function(vast_fit = vast_fit, time_covs, pred_covs_out_final = vast_pred_df_post_fit, gam_degree = gam_degree, hab_env_coeffs_n = hab_env_coeffs_n) {
+  if (FALSE) {
+    tar_load(vast_fit)
+    vast_fit <- vast_fit
+    time_covs <- "Season"
+    tar_load(vast_pred_df_post_fit)
+    pred_covs_out_final <- vast_pred_df_post_fit
+    gam_degree <- gam_degree
+    hab_env_coeffs_n <- hab_env_coeffs_n
+  }
   proj_obs_out <- vector("list", length = 4)
   names(proj_obs_out) <- c("proj_X_contrasts", "proj_X1_config", "proj_X2_config", "proj_map")
 
-  proj_obs_out[["proj_X_contrasts"]] <- list(Season = contrasts(pred_covs_out_final$Season, contrasts = FALSE), Year_Cov = contrasts(pred_covs_out_final$Year_Cov, contrasts = FALSE))
+  if (length(time_covs) == 2) {
+    proj_obs_out[["proj_X_contrasts"]] <- list(Season = contrasts(pred_covs_out_final$Season, contrasts = FALSE), Year_Cov = contrasts(pred_covs_out_final$Year_Cov, contrasts = FALSE))
 
-  ## Move to a new function
-  proj_obs_out[["proj_X1_config"]] <- matrix(c(2, rep(3, length(unique(pred_covs_out_final$Season)) - 1), 2, rep(3, nlevels(pred_covs_out_final$Year_Cov) - 1), rep(rep(1, gam_degree), hab_env_coeffs_n)), nrow = 1)
-  proj_obs_out[["proj_X2_config"]] <- matrix(c(2, rep(3, length(unique(pred_covs_out_final$Season)) - 1), 2, rep(3, nlevels(pred_covs_out_final$Year_Cov) - 1), rep(rep(1, gam_degree), hab_env_coeffs_n)), nrow = 1)
+    ## Move to a new function
+    proj_obs_out[["proj_X1_config"]] <- matrix(c(2, rep(3, length(unique(pred_covs_out_final$Season)) - 1), 2, rep(3, nlevels(pred_covs_out_final$Year_Cov) - 1), rep(rep(1, gam_degree), hab_env_coeffs_n)), nrow = 1)
+    proj_obs_out[["proj_X2_config"]] <- matrix(c(2, rep(3, length(unique(pred_covs_out_final$Season)) - 1), 2, rep(3, nlevels(pred_covs_out_final$Year_Cov) - 1), rep(rep(1, gam_degree), hab_env_coeffs_n)), nrow = 1)
 
-  proj_map <- vast_fit$tmb_list$Map
-  proj_map$gamma1_cp <- factor(c(proj_map$gamma1_cp, seq(from = (1 + max(as.numeric(as.character(levels(proj_map$gamma1_cp))))), to = max(as.numeric(as.character(levels(proj_map$gamma1_cp)))) + length(levels(pred_covs_out_final$Year_Cov)[!levels(pred_covs_out_final$Year_Cov) %in% levels(vast_fit$covariate_data$Year_Cov)]))))
+    proj_map <- vast_fit$tmb_list$Map
+    proj_map$gamma1_cp <- factor(c(proj_map$gamma1_cp, seq(from = (1 + max(as.numeric(as.character(levels(proj_map$gamma1_cp))))), to = max(as.numeric(as.character(levels(proj_map$gamma1_cp)))) + length(levels(pred_covs_out_final$Year_Cov)[!levels(pred_covs_out_final$Year_Cov) %in% levels(vast_fit$covariate_data$Year_Cov)]))))
+    proj_map$gamma2_cp <- factor(c(proj_map$gamma2_cp, seq(from = (1 + max(as.numeric(as.character(levels(proj_map$gamma2_cp))))), to = max(as.numeric(as.character(levels(proj_map$gamma2_cp)))) + length(levels(pred_covs_out_final$Year_Cov)[!levels(pred_covs_out_final$Year_Cov) %in% levels(vast_fit$covariate_data$Year_Cov)]))))
 
-  proj_map$gamma2_cp <- factor(c(proj_map$gamma2_cp, seq(from = (1 + max(as.numeric(as.character(levels(proj_map$gamma2_cp))))), to = max(as.numeric(as.character(levels(proj_map$gamma2_cp)))) + length(levels(pred_covs_out_final$Year_Cov)[!levels(pred_covs_out_final$Year_Cov) %in% levels(vast_fit$covariate_data$Year_Cov)]))))
+    proj_map$log_sigmaXi1_cp <- factor(c(rep(1, length(unique(pred_covs_out_final$Season))), rep(4, nlevels(pred_covs_out_final$Year_Cov)), rep(rep(NA, gam_degree), hab_env_coeffs_n)))
+    proj_map$log_sigmaXi2_cp <- factor(c(rep(1, length(unique(pred_covs_out_final$Season))), rep(4, nlevels(pred_covs_out_final$Year_Cov)), rep(rep(NA, gam_degree), hab_env_coeffs_n)))
+  } else {
+    proj_obs_out[["proj_X_contrasts"]] <- list(Season = contrasts(pred_covs_out_final$Season, contrasts = FALSE))
 
-  proj_map$log_sigmaXi1_cp <- factor(c(rep(1, length(unique(pred_covs_out_final$Season))), rep(4, nlevels(pred_covs_out_final$Year_Cov)), rep(rep(NA, gam_degree), hab_env_coeffs_n)))
-  proj_map$log_sigmaXi2_cp <- factor(c(rep(1, length(unique(pred_covs_out_final$Season))), rep(4, nlevels(pred_covs_out_final$Year_Cov)), rep(rep(NA, gam_degree), hab_env_coeffs_n)))
+    ## Move to a new function
+    proj_obs_out[["proj_X1_config"]] <- vast_fit$X1config_cp
+    proj_obs_out[["proj_X2_config"]] <- vast_fit$X2config_cp
+
+    proj_map <- vast_fit$tmb_list$Map
+  }
 
   proj_map$Xiinput1_scp <- factor(seq(from = 1, to = vast_fit$data_list$n_s * dim(proj_obs_out[["proj_X1_config"]])[2]))
   proj_map$Xiinput2_scp <- factor(seq(from = 1, to = vast_fit$data_list$n_s * dim(proj_obs_out[["proj_X2_config"]])[2]))
@@ -1689,6 +1707,25 @@ make_vast_proj_objects <- function(vast_fit = vast_fit, pred_covs_out_final = va
 }
 
 project.fit_model_wrapper <- function(n_sims = n_sims, sim_type = 1, vast_fit = vast_fit, time_cov = "Year_Cov", time_cov_method = time_cov_method, index_shapes = index_shapefiles, historical_uncertainty = "none", n_samples = 1, n_proj = n_proj, new_covariate_data = vast_pred_df_post_fit, new_catchability_data = NULL, proj_objects = proj_objects, seed = 123456, nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df")) {
+  if (FALSE) {
+    n_sims <- 1
+    sim_type <- 1
+    tar_load(vast_fit)
+    time_cov <- NULL
+    time_cov_method <- NULL
+    tar_load(index_shapefiles)
+    historical_uncertainty <- "none"
+    n_samples <- 1
+    n_proj <- 3
+    tar_load(vast_pred_df_post_fit)
+    new_covariate_data <- vast_pred_df_post_fit
+    new_catchability_data <- NULL
+    tar_load(proj_objects)
+    proj_objects <- proj_objects
+    seed <- 123456
+    nice_category_names <- nice_category_names
+    out_dir <- paste0(res_root, "prediction_df")
+  }
   sim_res <- vector("list", length = n_sims)
   for (rI in 1:n_sims) {
     sim_res[[rI]] <- project.fit_model(
@@ -2188,8 +2225,9 @@ vast_read_index_shapes <- function(index_shapefiles_dir) {
 get_vast_index_timeseries <- function(vast_fit, all_times, nice_category_names, index_scale = c("raw", "log"), out_dir) {
   if (FALSE) {
     tar_load(vast_fit)
+    tar_load(vast_seasonal_data)
     all_times <- levels(vast_seasonal_data$VAST_YEAR_SEASON)
-    nice_category_names <- "American lobster"
+    nice_category_names <- nice_category_names
     index_scale <- "raw"
     out_dir <- paste0(res_root, "tables")
 

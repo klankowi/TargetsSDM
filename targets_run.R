@@ -20,7 +20,7 @@ if (clean_start) {
 # Trying to leverage more compute cores
 cores_avail <- detectCores()
 registerDoFuture()
-plan(multisession, workers = cores_avail - 3)
+plan(multisession, workers = cores_avail - 2)
 
 # Checking calls
 tar_manifest(fields = "command")
