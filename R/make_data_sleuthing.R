@@ -126,7 +126,47 @@ if(missing(catchability_data)) catchability_data = NULL
 "Q1_formula" = Q1_formula
 "Q2_formula" = Q2_formula
 
-alternate_inputs = list()
+"bi" = data_args_input$b_i
+"a_i" = data_args_input$a_i
+"t_i" = data_args_input$t_i
+"c_iz" = data_args_input$c_iz
+"e_i" = c_iz[, 1]
+"v_i" = data_args_input$v_i
+"FieldConfig" = data_args_input$FieldConfig
+"ObsModel_ez" = data_args_input$ObsModel
+"OverdispersionConfig" = data_args_input$OverdispersionConfig
+"RhoConfig" = data_args_input$RhoConfig
+"VamConfig" = data_args_input$VamConfig
+"Aniso" = data_args_input$Aniso
+"PredTF_i" = data_args_input$PredTF_i
+"covariate_data" = data_args_input$covariate_data
+"X1_formula" = data_args_input$X1_formula
+"X2_formula" = data_args_input$X2_formula
+"X1config_cp" = data_args_input$X1config_cp
+"X2config_cp" = data_args_input$X2config_cp
+"X_contrasts" = data_args_input$X_contrasts
+"catchability_data" = NULL
+"Q1_formula" = data_args_input$Q1_formula
+"Q2_formula" = data_args_input$Q2_formula
+"Q1config_k" = data_args_input$Q1config_k
+"Q2config_k" = data_args_input$Q2config_k
+"spatial_list" = data_args_input$spatial_list
+"Network_sz" = NULL
+"F_ct" = NULL
+"F_init" = NULL
+"CheckForErrors" = TRUE
+"yearbounds_zz" = NULL
+"Options" = data_args_input$Options
+"Expansion_cz" = NULL
+"Z_gm" = NULL
+"Version" = data_args_input$Version
+"overlap_zz" = matrix(ncol = 7, nrow = 0)
+
+
+
+
+
+alternate_inputs = list(data_args_input$Map)
 if (missing(spatial_list)) {
   warning("Consider changing use of `make_data` to include `spatial_list` as input")
   a_xl = a_gl = alternate_inputs[["a_xl"]]
