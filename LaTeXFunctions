@@ -1,0 +1,34 @@
+$$log(\eta_{i}) = \underbrace{\beta_{\eta}(t_i)}_{Temporal\, variation} + \underbrace{\nu_{\eta}(s_i, t_i)}_{Habitat\, covariates} + \underbrace{\xi_{\eta u}(s_i, u_i)}_{Seasonal\, spatial\, variation} + \underbrace{\omega_{\eta}(s_i)}_{Spatial\, variation} + \underbrace{\epsilon_{\eta}(s_i, t_i)}_{Spatio-temporal\, variation} + \underbrace{\zeta_{\eta}(i)}_{Catchability\, covariates}$$
+
+$$\beta_{\eta}(t_i) = \mu_{\beta} + \beta_{\eta u}(u_i) + \beta_{\eta t}(t_i)$$
+
+\beta_{n t}t_i) \sim \begin{Bmatrix}
+N(\textbf{0}, \sigma^2_{n \beta} ) &  \textrm{if}\, t_i = t_{min}\\
+N(\rho_{n \beta}\beta_{n t}(t_i-1), \sigma^2_{n \beta})  & \textrm{if}\, t_i > t_{min} \\
+\end{Bmatrix} 
+
+$$log(\eta_{i}) = \underbrace{\beta_{\eta}(t_i)}_{Temporal\, variation} + \underbrace{\nu_{\eta}(s_i, t_i)}_{Habitat\, covariates} + \underbrace{\xi_{\eta u}(s_i, u_i)}_{Seasonal\, spatial\, variation} + \underbrace{\omega_{\eta}(s_i)}_{Spatial\, variation} + \underbrace{\epsilon_{\eta}(s_i, t_i)}_{Spatio-temporal\, variation} + \underbrace{\zeta_{\eta}(i)}_{Catchability\, covariates}$$
+
+$$\beta_{\eta}(t_i) = \mu_{\beta} + \beta_{\eta u}(u_i) + \beta_{\eta t}(t_i)$$
+
+$$\nu_{\eta}(s_i, t_i) = \sum_{j = 1}^{J}f_j(x_j)\, \textrm{and}\, f_j(x_j) = \sum_{k = 1}^{k}\beta_{j k}b_{j k}(x_j)$$ 
+
+$$\omega_{\eta}(s_i) \sim MVN(\textbf{0}, \sigma^2_{\eta\omega}\textbf{R}_n)$$
+
+$$\textbf{R}_n(s_1, s_2) = \frac{1}{2^{v-1}\tau (v)}\times (\kappa _{\eta}\left|\textbf{d}(s_1, s_2)\textbf{H}\right|)^v\times K_v(\kappa _{\eta}\left|\textbf{d}(s_1, s_2)\textbf{H}\right|)$$
+
+$$\epsilon_{\eta}(s, t) \sim  \begin{Bmatrix}
+MVN(\textbf{0}, \textbf{Q}^{-1}) & \textrm{if}\, t = t_{min} \\
+MVN(\rho_{\eta \epsilon}\epsilon_{\eta}(s,t-1), \textbf{Q}^{-1}) &  \textrm{if}\, t > t_{min} \\
+\end{Bmatrix}$$ 
+
+$$\zeta_{\eta}(i) = \sum_{k = 1}^{\eta_{k}}(\gamma_{\eta}(k)q_{\eta}(i, k))$$ 
+
+
+Pr(B = b_i) = \begin{Bmatrix}1\, -\, p_i & \textrm{if}\, B = 0, \\p_i\times g\left\{{B|r_i, \sigma^2_m}\right\} & \textrm{if}\, B > 0  \\\end{Bmatrix} 
+
+
+\beta_{\eta t}(t_i) \sim \begin{Bmatrix}
+N(\textbf{0}, \sigma^2_{\eta\beta} ) & \textrm{if}\, t = t_{min} \\
+N(\beta_{\eta t}(t-1), \sigma^2_{\eta\beta}) & \textrm{if}\, t > t_{min}  \\
+\end{Bmatrix} 

@@ -43,7 +43,7 @@ high_res_load <- function(high_res_dir) {
 #'
 #' @export
 
-make_vast_predict_df <- function(predict_covariates_stack_agg, extra_covariates_stack, covs_rescale = c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal"), rescale_params, depth_cut, mask, summarize, ensemble_stat, fit_seasons, fit_year_min, fit_year_max, pred_years, out_dir) {
+make_vast_predict_df <- function(predict_covariates_stack_agg, extra_covariates_stack, covs_rescale = c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal"), rescale_params, depth_cut, mask, summarize, ensemble_stat, fit_seasons, fit_year_min, fit_year_max, test_year_max, out_dir) {
 
   # For debugging
   if (FALSE) {
@@ -107,7 +107,7 @@ make_vast_predict_df <- function(predict_covariates_stack_agg, extra_covariates_
           SEASON == "Summer" ~ "07-16",
           SEASON == "Fall" ~ "09-16"
         ), sep = "-"),
-        SURVEY = "DUMMY",
+        SURVEY = "NMFS",
         SVVESSEL = "DUMMY",
         NMFS_SVSPP = "DUMMY",
         DFO_SPEC = "DUMMY",
@@ -127,13 +127,13 @@ make_vast_predict_df <- function(predict_covariates_stack_agg, extra_covariates_
 
   # Only going to keep information from fit_year_max through pred_years...
   pred_covs_out_final <- pred_covs_out %>%
-    dplyr::filter(., EST_YEAR > fit_year_max & EST_YEAR <= max(pred_years))
+    dplyr::filter(., EST_YEAR > fit_year_max & EST_YEAR <= test_year_max)
 
   # New implementation...
   pred_covs_out_final <- pred_covs_out_final %>%
     mutate(., # VAST_YEAR_COV = EST_YEAR,
       # VAST_YEAR_COV = ifelse(EST_YEAR > fit_year_max, fit_year_max, EST_YEAR),
-      VAST_YEAR_COV = ifelse(EST_YEAR > pred_year_max, pred_year_max, EST_YEAR),
+      VAST_YEAR_COV = ifelse(EST_YEAR > fit_year_max, test_year_max, EST_YEAR),
       VAST_SEASON = case_when(
         SEASON == "Spring" ~ "SPRING",
         SEASON == "Summer" ~ "SUMMER",
@@ -147,7 +147,7 @@ make_vast_predict_df <- function(predict_covariates_stack_agg, extra_covariates_
     filter(., VAST_SEASON %in% fit_seasons)
 
   # Need to account for new levels in year season...
-  all_years <- seq(from = fit_year_min, to = max(pred_years), by = 1)
+  all_years <- seq(from = fit_year_min, to = test_year_max, by = 1)
   all_seasons <- fit_seasons
   year_season_set <- expand.grid("SEASON" = all_seasons, "EST_YEAR" = all_years)
   all_year_season_levels <- apply(year_season_set[, 2:1], MARGIN = 1, FUN = paste, collapse = "_")
@@ -209,7 +209,7 @@ make_vast_predict_df <- function(predict_covariates_stack_agg, extra_covariates_
 #'
 #' @export
 
-make_vast_seasonal_data <- function(tidy_mod_data, fit_seasons, nmfs_species_code, fit_year_min, fit_year_max, pred_years, pred_df, out_dir) {
+make_vast_seasonal_data <- function(tidy_mod_data, fit_seasons, nmfs_species_code, fit_year_min, fit_year_max, test_year_max, pred_df, out_dir) {
 
   # For debugging
   if (FALSE) {
@@ -218,12 +218,10 @@ make_vast_seasonal_data <- function(tidy_mod_data, fit_seasons, nmfs_species_cod
     fit_year_min <- fit_year_min
     fit_year_max <- fit_year_max
     fit_seasons <- fit_seasons
-    pred_years <- pred_years
+    test_year_max<- test_year_max
     tar_load(vast_predict_df)
-    pred_df <- vast_predict_df
+    pred_df <- NULL
     out_dir <- here::here("scratch/aja/targets_flow/data/combined/")
-
-    tar_load(tidy_mod_data)
     fit_seasons
   }
 
@@ -243,7 +241,7 @@ make_vast_seasonal_data <- function(tidy_mod_data, fit_seasons, nmfs_species_cod
   data_temp <- tidy_mod_data %>%
     filter(., NMFS_SVSPP == nmfs_species_code) %>%
     # filter(., EST_YEAR >= fit_year_min & EST_YEAR <= fit_year_max) %>%
-    filter(., EST_YEAR >= fit_year_min & EST_YEAR <= pred_year_max) %>%
+    filter(., EST_YEAR >= fit_year_min & EST_YEAR <= test_year_max) %>%
     mutate(., "VAST_SEASON" = case_when(
       SURVEY == "DFO" & SEASON == "SPRING" ~ "SPRING",
       SURVEY == "NMFS" & SEASON == "SPRING" ~ "SPRING",
@@ -257,8 +255,8 @@ make_vast_seasonal_data <- function(tidy_mod_data, fit_seasons, nmfs_species_cod
     filter(., VAST_SEASON %in% fit_seasons)
 
   # Set of years and seasons. The DFO spring survey usually occurs before the NOAA NEFSC spring survey, so ordering accordingly. Pred year max or fit year max??
-  # all_years<- seq(from = fit_year_min, to = fit_year_max, by = 1)
-  all_years <- seq(from = fit_year_min, to = pred_years, by = 1)
+  all_years<- seq(from = fit_year_min, to = test_year_max, by = 1)
+  #all_years <- seq(from = fit_year_min, to = test_year_max, by = 1)
   all_seasons <- fit_seasons
   yearseason_set <- expand.grid("SEASON" = all_seasons, "EST_YEAR" = all_years)
   all_yearseason_levels <- apply(yearseason_set[, 2:1], MARGIN = 1, FUN = paste, collapse = "_")
@@ -280,10 +278,10 @@ make_vast_seasonal_data <- function(tidy_mod_data, fit_seasons, nmfs_species_cod
   data_temp$VAST_SEASON <- factor(data_temp$VAST_SEASON, levels = all_seasons)
 
   # VAST year
-  data_temp$VAST_YEAR_COV <- ifelse(data_temp$EST_YEAR > pred_year_max, pred_year_max, data_temp$EST_YEAR)
+  data_temp$PredTF <- ifelse(data_temp$EST_YEAR <= fit_year_max, FALSE, TRUE)
+  # data_temp$VAST_YEAR_COV <- ifelse(data_temp$EST_YEAR > fit_year_max, fit_year_max, data_temp$EST_YEAR)
   # data_temp$VAST_YEAR_COV<- ifelse(data_temp$EST_YEAR > fit_year_max, fit_year_max, data_temp$EST_YEAR)
-  # data_temp$VAST_YEAR_COV<- data_temp$EST_YEAR
-  data_temp$PredTF <- FALSE
+  data_temp$VAST_YEAR_COV<- data_temp$EST_YEAR
 
   # Ordering...
   cov_names <- names(data_temp)[-which(names(data_temp) %in% c("ID", "DATE", "EST_YEAR", "SEASON", "SURVEY", "SVVESSEL", "DECDEG_BEGLAT", "DECDEG_BEGLON", "NMFS_SVSPP", "DFO_SPEC", "PRESENCE", "BIOMASS", "ABUNDANCE", "PredTF", "VAST_YEAR_COV", "VAST_SEASON", "VAST_YEAR_SEASON"))]
@@ -292,7 +290,7 @@ make_vast_seasonal_data <- function(tidy_mod_data, fit_seasons, nmfs_species_cod
     dplyr::select("ID", "DATE", "EST_YEAR", "SEASON", "SURVEY", "SVVESSEL", "DECDEG_BEGLAT", "DECDEG_BEGLON", "NMFS_SVSPP", "DFO_SPEC", "PRESENCE", "BIOMASS", "ABUNDANCE", "PredTF", "VAST_YEAR_COV", "VAST_SEASON", "VAST_YEAR_SEASON", {{ cov_names }})
 
   # Make dummy data for all year_seasons to estimate gaps in sampling if needed
-  dummy_data <- data.frame("ID" = sample(data_temp$ID, size = 1), "DATE" = mean(data_temp$DATE, na.rm = TRUE), "EST_YEAR" = yearseason_set[, "EST_YEAR"], "SEASON" = yearseason_set[, "SEASON"], "SURVEY" = "DUMMY", "SVVESSEL" = "DUMMY", "DECDEG_BEGLAT" = mean(data_temp$DECDEG_BEGLAT, na.rm = TRUE), "DECDEG_BEGLON" = mean(data_temp$DECDEG_BEGLON, na.rm = TRUE), "NMFS_SVSPP" = "DUMMY", "DFO_SPEC" = "DUMMY", "PRESENCE" = 1, "BIOMASS" = 1, "ABUNDANCE" = 1, "PredTF" = TRUE, "VAST_YEAR_COV" = yearseason_set[, "EST_YEAR"], "VAST_SEASON" = yearseason_set[, "SEASON"], "VAST_YEAR_SEASON" = all_yearseason_levels)
+  dummy_data <- data.frame("ID" = sample(data_temp$ID, size = 1), "DATE" = mean(data_temp$DATE, na.rm = TRUE), "EST_YEAR" = yearseason_set[, "EST_YEAR"], "SEASON" = yearseason_set[, "SEASON"], "SURVEY" = "NMFS", "SVVESSEL" = "DUMMY", "DECDEG_BEGLAT" = mean(data_temp$DECDEG_BEGLAT, na.rm = TRUE), "DECDEG_BEGLON" = mean(data_temp$DECDEG_BEGLON, na.rm = TRUE), "NMFS_SVSPP" = "NMFS", "DFO_SPEC" = "DUMMY", "PRESENCE" = 1, "BIOMASS" = 1, "ABUNDANCE" = 1, "PredTF" = TRUE, "VAST_YEAR_COV" = yearseason_set[, "EST_YEAR"], "VAST_SEASON" = yearseason_set[, "SEASON"], "VAST_YEAR_SEASON" = all_yearseason_levels)
 
   # Add in "covariates"
   col_ind <- ncol(dummy_data)
@@ -306,7 +304,7 @@ make_vast_seasonal_data <- function(tidy_mod_data, fit_seasons, nmfs_species_cod
   # Combine with original dataset
   vast_data_out <- rbind(data_temp, dummy_data)
   # vast_data_out$VAST_YEAR_COV<- factor(vast_data_out$VAST_YEAR_COV, levels = seq(from = fit_year_min, to = fit_year_max, by = 1))
-  vast_data_out$VAST_YEAR_COV <- factor(vast_data_out$VAST_YEAR_COV, levels = seq(from = fit_year_min, to = pred_years, by = 1))
+  vast_data_out$VAST_YEAR_COV <- factor(vast_data_out$VAST_YEAR_COV, levels = seq(from = fit_year_min, to = test_year_max, by = 1))
 
   # If we have additional years that we want to predict to and NOT Fit too, we aren't quite done just yet...
   if (!is.null(pred_df)) {
@@ -438,7 +436,7 @@ make_vast_catchability_data <- function(vast_seasonal_data, out_dir) {
     "Season" = vast_seasonal_data$VAST_SEASON,
     "Lat" = vast_seasonal_data$DECDEG_BEGLAT,
     "Lon" = vast_seasonal_data$DECDEG_BEGLON,
-    "Survey" = factor(vast_seasonal_data$SURVEY, levels = c("NMFS", "DFO", "DUMMY"))
+    "Survey" = factor(vast_seasonal_data$SURVEY, levels = c("NMFS", "DFO"))
   )
 
   # Save and return it
@@ -946,7 +944,7 @@ vast_make_adjustments <- function(vast_build, index_shapes, spatial_info_dir, ad
 #'
 #' @export
 
-vast_fit_sdm <- function(vast_build_adjust, nice_category_names, index_shapes, spatial_info_dir, out_dir) {
+vast_fit_sdm <- function(vast_build_adjust, nice_category_names, index_shapes, spatial_info_dir, run_final_model = run_final_model, out_dir) {
 
   # For debugging
   if (FALSE) {
@@ -966,7 +964,7 @@ vast_fit_sdm <- function(vast_build_adjust, nice_category_names, index_shapes, s
   }
 
   # Build and fit model
-  vast_fit_out <- fit_model_aja("settings" = vast_build_adjust$settings, "input_grid" = vast_build_adjust$input_args$data_args_input$input_grid, "Method" = vast_build_adjust$settings$Method, "Lat_i" = vast_build_adjust$data_frame[, "Lat_i"], "Lon_i" = vast_build_adjust$data_frame[, "Lon_i"], "t_i" = vast_build_adjust$data_frame[, "t_i"], "c_iz" = vast_build_adjust$data_frame[, "c_iz"], "b_i" = vast_build_adjust$data_frame[, "b_i"], "a_i" = vast_build_adjust$data_frame[, "a_i"], "PredTF_i" = vast_build_adjust$data_list[["PredTF_i"]], "X1config_cp" = vast_build_adjust$input_args$data_args_input[["X1config_cp"]], "X2config_cp" = vast_build_adjust$input_args$data_args_input[["X2config_cp"]], "covariate_data" = vast_build_adjust$input_args$data_args_input$covariate_data, "X1_formula" = vast_build_adjust$input_args$data_args_input$X1_formula, "X2_formula" = vast_build_adjust$input_args$data_args_input$X2_formula, "X_contrasts" = vast_build_adjust$input_args$data_args_input$X_contrasts, "catchability_data" = vast_build_adjust$input_args$data_args_input$catchability_data, "Q1_formula" = vast_build_adjust$input_args$data_args_input$Q1_formula, "Q2_formula" = vast_build_adjust$input_args$data_args_input$Q2_formula, "Q1config_cp" = vast_build_adjust$input_args$data_args_input[["Q1config_cp"]], "Q2config_cp" = vast_build_adjust$input_args$data_args_input[["Q2config_cp"]], "Map" = vast_build_adjust$tmb_list$Map, "newtonsteps" = 1, "getsd" = TRUE, "getReportCovariance" = TRUE, "run_model" = TRUE, "test_fit" = FALSE, "Use_REML" = FALSE, "getJointPrecision" = vast_build_adjust$input_args$extra_args$getJointPrecision, "index_shapes" = index_shapes, "DirPath" = spatial_info_dir)
+  vast_fit_out <- fit_model_aja("settings" = vast_build_adjust$settings, "input_grid" = vast_build_adjust$input_args$data_args_input$input_grid, "Method" = vast_build_adjust$settings$Method, "Lat_i" = vast_build_adjust$data_frame[, "Lat_i"], "Lon_i" = vast_build_adjust$data_frame[, "Lon_i"], "t_i" = vast_build_adjust$data_frame[, "t_i"], "c_iz" = vast_build_adjust$data_frame[, "c_iz"], "b_i" = vast_build_adjust$data_frame[, "b_i"], "a_i" = vast_build_adjust$data_frame[, "a_i"], "PredTF_i" = vast_build_adjust$data_list[["PredTF_i"]], "X1config_cp" = vast_build_adjust$input_args$data_args_input[["X1config_cp"]], "X2config_cp" = vast_build_adjust$input_args$data_args_input[["X2config_cp"]], "covariate_data" = vast_build_adjust$input_args$data_args_input$covariate_data, "X1_formula" = vast_build_adjust$input_args$data_args_input$X1_formula, "X2_formula" = vast_build_adjust$input_args$data_args_input$X2_formula, "X_contrasts" = vast_build_adjust$input_args$data_args_input$X_contrasts, "catchability_data" = vast_build_adjust$input_args$data_args_input$catchability_data, "Q1_formula" = vast_build_adjust$input_args$data_args_input$Q1_formula, "Q2_formula" = vast_build_adjust$input_args$data_args_input$Q2_formula, "Q1config_cp" = vast_build_adjust$input_args$data_args_input[["Q1config_cp"]], "Q2config_cp" = vast_build_adjust$input_args$data_args_input[["Q2config_cp"]], "Map" = vast_build_adjust$tmb_list$Map, "newtonsteps" = 1, "getsd" = TRUE, "getReportCovariance" = TRUE, "run_model" = run_final_model, "test_fit" = FALSE, "Use_REML" = FALSE, "getJointPrecision" = vast_build_adjust$input_args$extra_args$getJointPrecision, "index_shapes" = index_shapes, "DirPath" = spatial_info_dir)
 
   # Save and return it
   saveRDS(vast_fit_out, file = paste(out_dir, "/", nice_category_names, "_", "fitted_vast.rds", sep = ""))
@@ -1104,7 +1102,7 @@ predict_vast <- function(vast_fitted_sdm, nice_category_names, predict_variable 
     pred_catch_dat_use <- pred_cov_dat_use %>%
       dplyr::select(., c(Year, Year_Cov, Season, Lat, Lon))
     pred_catch_dat_use$Survey <- rep("NMFS", nrow(pred_catch_dat_use))
-    pred_catch_dat_use$Survey <- factor(pred_catch_dat_use$Survey, levels = c("NMFS", "DFO", "DUMMY"))
+    pred_catch_dat_use$Survey <- factor(pred_catch_dat_use$Survey, levels = c("NMFS", "DFO"))
   } else {
     pred_catch_dat_use <- NULL
   }
@@ -1548,7 +1546,7 @@ vast_post_fit_pred_df <- function(predict_covariates_stack_agg_dir, extra_covari
           SEASON == "Summer" ~ "07-16",
           SEASON == "Fall" ~ "09-16"
         ), sep = "-"),
-        SURVEY = "DUMMY",
+        SURVEY = "NMFS",
         SVVESSEL = "DUMMY",
         NMFS_SVSPP = "DUMMY",
         DFO_SPEC = "DUMMY",

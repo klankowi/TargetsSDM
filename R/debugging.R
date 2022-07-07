@@ -60,11 +60,13 @@ summary(temp2)
 temp2[which.max(temp2$BIOMASS), ]
 
 
-# VAST fit
+# VAST fitting errors!!!
 tar_load(vast_fit)
-TMBhelper::check_estimability(vast_fit$tmb_list$Obj)
-summary(vast_fit$data_list$a_i)
-
+test <- TMBhelper::check_estimability(vast_fit$tmb_list$Obj)
+param_names <- names(vast_fit$tmb_list$Obj$par)
+param_names[test$WhichBad]
+test <- TMBhelper::Check_Identifiable(vast_fit$tmb_list$Obj)
+test$WhichBad
 
 diagnose_hessian <- function(fit,h=NULL, eval.eps=1e-5,evec.eps=1e-2) {
   if(FALSE){
@@ -119,3 +121,20 @@ diagnose_hessian <- function(fit,h=NULL, eval.eps=1e-5,evec.eps=1e-2) {
   return(invisible(h))
 }
 diagnose_hessian(m0)
+
+vast_fit$tmb_list$Obj
+Opt = TMBhelper::Optimize(obj=vast_fit$tmb_list$Obj, getsd=FALSE)
+
+
+## After setting run_model = FALSE
+tar_load(vast_fit)
+ParHat = TMBhelper:::extract_fixed(vast_fit$tmb_list$Obj)
+Gr = vast_fit$tmb_list$Obj$gr( ParHat )
+Gr
+
+param_names<- names(vast_fit$tmb_list$Obj$par)
+param_names[which(Gr == 0)]
+param_names[which(Gr == 0)]
+which(Gr == 0)
+
+Opt = TMBhelper::Optimize(obj=vast_fit$tmb_list$Obj, getsd=FALSE)

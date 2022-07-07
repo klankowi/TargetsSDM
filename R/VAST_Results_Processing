@@ -1,0 +1,97 @@
+######
+## Summarizing results from fitted VAST model
+######
+
+#####
+## Set up stuff -- libraries and reading in fitted model object
+library(VAST)
+library(tidyverse)
+library(sf)
+ 
+source("https://raw.githubusercontent.com/aallyn/TargetsSDM/main/R/SDM_PredValidation_Functions.R")
+source("https://raw.githubusercontent.com/aallyn/TargetsSDM/main/R/vast_functions.R")
+ 
+# Path to Halibut_ForKiyomi file -- UPDATE THIS PATH!!!
+fold_path<- "/Users/aallyn/Library/CloudStorage/Box-Box/Mills Lab/Projects/sdm_workflow/targets_output/Halibut_ForKiyomi"
+ 
+# Read in the fitted model object
+fit_mod<- readRDS(paste0(fold_path, "/Atlantic_halibut_fitted_vast.rds"))
+names(fit_mod)
+
+null_mod<- readRDS(paste0(fold_path, "/Atlantic_halibut_Null_fitted_vast.rds"))
+
+#####
+## Figures
+
+## Model evaluation and validaton figure -- this will likely go early in the list of figures I think as it will then give folks some indication of how much to "trust" the other results. One the evaluation side, we can get a percent deviance explained that basically compares the full model to a null, intercept only model. This gives some indication of how well the model fits the data and how much of the variability we can explain with the full model.
+deviance <- round((1 - (fit_mod$Report$deviance / null_mod$Report$deviance)) * 100, 2)
+
+# On the validation side, we are going to want to pull out predictions at locations.
+obs_pred0 <- vast_get_point_preds(vast_fit = fit_mod, use_PredTF_only = FALSE, nice_category_names = "Atlantic_halibut", out_dir = paste0(fold_path, "/"))
+
+# Add in nice season_year names
+dates<- fit_mod$covariate_data %>%
+  dplyr::select(., Year, Year_Cov, Season) %>%
+  distinct() %>%
+  mutate("Year_Season" = paste(Year_Cov, Season, sep = "_"))
+ 
+obs_pred0 <- obs_pred0 %>%
+    left_join(., dates)
+
+# Some formatting as for this part, we actually just want the predTF = 0 observations as these are the true hold out observations.
+obs_pred0_valid <- obs_pred0 %>%
+    filter(., PredTF_i == TRUE & as.numeric(as.character(Year_Cov)) >= 2015)
+
+# You could now use this dataframe and calculate any of the prediction validation stats that you'd life. I personally like the Taylor Diagrams, so doing that.
+taylor_diag0<- taylor_diagram_func(dat = obs_pred0_valid, obs = "Biomass", mod = "Predicted_Biomass", pt.col = "#d95f02", out.file = paste0(fold_path, "/Atlantic_halibut_TaylorDiagram_Final.jpg"))
+taylor_diag0
+
+# Not the best, not the worst. Moving on now to some of the "inferences".
+
+## Inferences: Covariate effects. We might be interested in plotting the relationship between halibut encounter rate (probability of presence, first linear predictor and stage of the model), positive catch rate (second linear predictor and stage of the model) for each of the environmental covariates in the model. We've got a function to get these values, which are saved as a csv and then one to plot them, with the plot also saved.
+
+halib_cov_eff <- get_vast_covariate_effects(vast_fit = fit_mod, params_plot = c("Depth", "SST_seasonal", "BT_seasonal", "SS_seasonal", "BS_seasonal"), params_plot_levels = 100, effects_pad_values = c(1), nice_category_names = "Atlantic halibut", out_dir = paste0(fold_path, ""))
+cov_eff_plot<- plot_vast_covariate_effects(vast_covariate_effects = halib_cov_eff, vast_fit = fit_mod, nice_category_names = "Atlantic halibut", out_dir = paste0(fold_path, ""))
+cov_eff_plot
+
+## Inferences: Total biomass. Next up, we can look at the total biomass within each of the regions we included. We have a function that gets these values and saves them in a csv and then another function to plot the values.
+halib_biomass <- get_vast_index_timeseries(vast_fit = fit_mod, all_times = unique(dates$Year_Season), nice_category_names = "Atlantic halibut", index_scale = "raw", out_dir = paste0(fold_path, ""))
+bio_plot<- plot_vast_index_timeseries(index_res_df = halib_biomass, index_scale = "raw", nice_category_names = "Atlantic halibut", nice_xlab = "Year-Season", nice_ylab = "Biomass index (metric tons)", paneling = "none", color_pal = NULL, out_dir = paste0(fold_path, ""))
+bio_plot
+
+## Hmm....the NMFS_Hague_Region seems weird.
+nmfs_hague <- st_read(here::here("data/supporting/index_shapefiles/NMFS_Hague_Region.shp"))
+plot(nmfs_hague) # That seems okay..
+
+a_gl_use<- fit_mod$data_list$a_gl 
+str(a_gl_use)
+summary(a_gl_use[, 1]) # Only has info for the first three columns??
+
+nmfs_hague
+
+nmfs <- st_read(here::here("data/supporting/index_shapefiles/NMFS.shp"))
+nmfs
+
+# Ahhh...looks like a "region" naming thing?
+dfo_hague<- st_read(here::here("data/supporting/index_shapefiles/DFO_Hague_Region.shp"))
+dfo_hague
+
+# Yup...Need to read these in and edit the names
+hague_region <- st_read(here::here("data/supporting/index_shapefiles/Hague_Region.shp")) %>%
+  st_union()
+hague_region <- st_as_sf(data.frame(Region = "Hague_Region"), geometry = hague_region)
+st_write(hague_region, here::here("data/supporting/index_shapefiles/Hague_Region.shp"), append = FALSE)
+hague_new <- st_read(here::here("data/supporting/index_shapefiles/Hague_Region.shp"))
+hague_new
+
+nmfs_hague_region <- st_read(here::here("data/supporting/index_shapefiles/NMFS_Hague_Region.shp")) 
+nmfs_hague_region$Region<- "NMFS_Hague_Region"
+st_write(nmfs_hague_region, here::here("data/supporting/index_shapefiles/NMFS_Hague_Region.shp"), append = FALSE)
+nmfs_hague_new <- st_read(here::here("data/supporting/index_shapefiles/NMFS_Hague_Region.shp"))
+nmfs_hague_new
+
+dfo_hague_region <- st_read(here::here("data/supporting/index_shapefiles/DFO_Hague_Region.shp")) 
+dfo_hague_region$Region<- "DFO_Hague_Region"
+st_write(dfo_hague_region, here::here("data/supporting/index_shapefiles/DFO_Hague_Region.shp"), append = FALSE)
+dfo_hague_new <- st_read(here::here("data/supporting/index_shapefiles/DFO_Hague_Region.shp"))
+dfo_hague_new
