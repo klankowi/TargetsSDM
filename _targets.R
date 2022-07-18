@@ -33,9 +33,9 @@ source(here::here("R/project.fit_model_aja.R"))
 sf_use_s2(FALSE)
 
 # Model fitting stuffs
-fit_type <- "ST_NoEsp"
+fit_type <- "ST"
 nmfs_species_code <- 73
-nice_category_names <- "Atlantic_cod"
+nice_category_names <- "Atlantic_cod_BetaRWSp"
 depth_cut <- 400
 fit_year_min <- 1985
 fit_year_max <- 2014 # INCLUDES this year (less than or equal to)
@@ -63,9 +63,9 @@ bias_correct_use <- TRUE
 
 catch_formula <- ~ factor(Survey)
 # strata_use <- data.frame("STRATA" = c("NMFS_and_DFO", "DFO", "NMFS", "Hague_Region", "DFO_Hague_Region", "NMFS_Hague_Region"))
-strata_use <- data.frame("STRATA" = c("NMFS_and_DFO", "DFO", "NMFS", "GoM", "SNE_and_MAB", "Scotian_Shelf"))
+strata_use <- data.frame("STRATA" = c("All", "DFO", "NMFS", "GoM", "SNE_and_MAB", "Scotian_Shelf"))
 
-run_final_model <- TRUE
+run_final_model <- FALSE
 
 # Dealing with 100/0 issues
 year_make_na <- NULL

@@ -485,7 +485,7 @@ vast_make_extrap_grid <- function(region_shapefile, index_shapes, cell_size) {
 
   # For debugging
   if (FALSE) {
-    tar_load(region_shapefile)
+    region_shapefile<- st_read(here::here("data/supporting/region_shapefile/full_survey_region.shp"))  
     tar_load(index_shapefiles)
     index_shapes <- index_shapefiles
     cell_size <- 25000
@@ -1504,7 +1504,7 @@ vast_post_fit_pred_df <- function(predict_covariates_stack_agg_dir, extra_covari
   #####
   dat_extrap <- vast_fit$extrapolation_list$Data_Extrap %>%
     mutate(., "Extrap_ID" = paste0("GRID_", seq(from = 1, to = nrow(.))))
-  extrap_unique_ids <- dat_extrap[which(dat_extrap$STRATA == "NMFS_and_DFO"), ]
+  extrap_unique_ids <- dat_extrap[which(dat_extrap$STRATA == "All"), ]
 
   # Coordinates for these unique IDs
   pred_coords <- data.frame("Lon" = extrap_unique_ids$Lon, "Lat" = extrap_unique_ids$Lat, "Extrap_ID" = extrap_unique_ids$Extrap_ID)
