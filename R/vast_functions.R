@@ -4024,6 +4024,286 @@ pred_idw_to_ncdf <- function(pred_idw_list, nice_category_names, climate_scenari
   nc_close(ncout)
 }
 
+get_range_edge = function( fit.model, 
+                           strata_names=NULL,
+                            category_names=NULL,
+                           working_dir=paste0(getwd(),"/"), 
+                           quantiles=c(0.05,0.95), 
+                           n_samples=100,
+                            interval_width=1, 
+                           width=NULL, 
+                           height=NULL,
+                           calculate_relative_to_average=FALSE,
+                           ...){
+
+if(FALSE){
+    fit.model = vast_fit
+    strata_names=NULL
+    category_names=NULL
+    working_dir=paste0(getwd(),"/")
+    quantiles=c(0.05,0.5,0.95)
+    n_samples=100
+    interval_width=1
+    width=NULL
+    height=NULL
+    calculate_relative_to_average=FALSE
+}
+  
+  # Unpack
+  Sdreport=fit.model$parameter_estimates$SD 
+  Report=fit.model$Report 
+  TmbData=fit.model$data_list 
+  Obj=fit.model$tmb_list$Obj
+  year_labels=fit.model$year_labels
+
+#   # extract northings and eastings 
+#   Z_gm = fit.model$spatial_list$loc_g 
+  
+#   # create UTM object with correct attributes
+#   tmpUTM = cbind("PID" = 1, "POS" = 1:nrow(Z_gm), "X" = Z_gm[, "E_km"], "Y" = Z_gm[, "N_km"])
+#   attr(tmpUTM, "projection") = "UTM"
+#   attr(tmpUTM, "zone") = 19
+  
+#   # convert to lat/lon for merging with custom axis
+#   latlon_g = PBSmapping::convUL(tmpUTM)
+#   latlon_g = cbind("Lat" = latlon_g[, "Y"], "Lon" = latlon_g[, "X"])
+#   latlon_g <- as.data.frame(latlon_g) # should be a df with lat/lon coordinates
+  
+#   # function to save the custom axis position that minimize Euclidean distance from each set of VAST coordinates
+#   get_length <- function(lon, lat, distdf) {
+#       tmp <- distdf
+#       tmp$abs.diff.x2 = abs(distdf$x - lon)^2
+#       tmp$abs.diff.y2 = abs(distdf$y - lat)^2
+#       # get Euclidean dist from VAST points to all points along the coastal axis
+#       tmp$abs.diff.xy = sqrt(tmp$abs.diff.x2 + tmp$abs.diff.y2)
+#       tmp <- tmp[tmp$abs.diff.xy == min(tmp$abs.diff.xy), ] # keep only the row with the minimum distance
+#       return(tmp$lengthfromhere) # save the position of that row
+#   }
+  
+#   # apply this to match each VAST knot with a position along the custom axis
+#   line_km=NULL
+#   for (k in 1:nrow(latlon_g)) {
+#       out = get_length(lon = latlon_g$Lon[k], lat = latlon_g$Lat[k], distdf = axisdistdat) / 1000
+#       line_km <- c(line_km, out)
+#   }
+#   # bind the axis positions that match each knot back to Z_gm
+#   Z_gm = cbind( Z_gm, "line_km"=line_km )
+#   Z_gm_axes = colnames(Z_gm)]
+  
+  # # Informative errors
+  # if(is.null(Sdreport)) stop("Sdreport is NULL; please provide Sdreport")
+  # if( !("jointPrecision" %in% names(Sdreport))) stop("jointPrecision not present in Sdreport; please re-run with `getJointPrecision=TRUE`")
+  # if( any(quantiles<0) | any(quantiles>1) ) stop("Please provide `quantiles` between zero and one")
+  # if( all(TmbData$Z_gm==0) ) stop("Please re-run with 'Options['Calculate_Range']=TRUE' to calculate range edges")
+  # 
+  # # Which parameters
+  # if( "ln_Index_tl" %in% rownames(TMB::summary.sdreport(Sdreport)) ){
+  #   # SpatialDeltaGLMM
+  #   stop("Not implemente")
+  # }
+  # if( "ln_Index_ctl" %in% rownames(TMB::summary.sdreport(Sdreport)) ){
+  #   # VAST Version < 2.0.0
+  #   stop("Not implemente")
+  # }
+  # if( "ln_Index_cyl" %in% rownames(TMB::summary.sdreport(Sdreport)) ){
+  #   # VAST Version >= 2.0.0
+  #   TmbData[["n_t"]] = nrow(TmbData[["t_yz"]])
+  # }
+  
+  # Default inputs
+#  if( is.null(Year_Set)) Year_Set = 1:TmbData$n_t
+#  if( is.null(Years2Include) ) Years2Include = 1:TmbData$n_t
+  if( is.null(strata_names) ) strata_names = 1:TmbData$n_l
+  if( is.null(category_names) ) category_names = 1:TmbData$n_c
+  if( is.null(colnames(TmbData$Z_gm)) ){
+    m_labels = paste0("axis",1:ncol(TmbData$Z_gm))
+  }else{
+    m_labels = colnames(TmbData$Z_gm)
+  }
+  
+  
+  ##### Local function
+  D_gcyr = sample_variable( Sdreport=Sdreport, Obj=Obj, variable_name="D_gct", n_samples=n_samples )
+  
+  # Calculate quantiles from observed and sampled densities D_gcy
+  E_zctm = array(NA, dim=c(length(quantiles),dim(Report$D_gct)[2:3],ncol(TmbData$Z_gm)) )
+  E_zctmr = array(NA, dim=c(length(quantiles),dim(Report$D_gct)[2:3],ncol(TmbData$Z_gm),n_samples) )
+  Mean_cmr = array(NA, dim=c(dim(Report$D_gct)[2],ncol(TmbData$Z_gm),n_samples) )
+  prop_zctm = array(NA, dim=c(dim(Report$D_gct)[1:3],ncol(TmbData$Z_gm)) )
+  prop_zctmr = array(NA, dim=c(dim(Report$D_gct)[1:3],ncol(TmbData$Z_gm),n_samples) )
+  for( rI in 0:n_samples ){
+    for( mI in 1:ncol(TmbData$Z_gm) ){
+      order_g = order(TmbData$Z_gm[,mI], decreasing=FALSE)
+      if(rI==0) prop_zctm[,,,mI] = apply( Report$D_gct, MARGIN=2:3, FUN=function(vec){cumsum(vec[order_g])/sum(vec)} )
+      if(rI>=0) prop_zctmr[,,,mI,rI] = apply( D_gcyr[,,,rI,drop=FALSE], MARGIN=2:3, FUN=function(vec){cumsum(vec[order_g])/sum(vec)} )
+      
+      # Calculate edge
+      for( cI in 1:dim(E_zctm)[2] ){
+        if(rI>=1){
+          if( calculate_relative_to_average==TRUE ){
+            Mean_cmr[cI,mI,rI] = weighted.mean( as.vector(TmbData$Z_gm[,mI]%o%rep(1,dim(Report$D_gct)[3])), w=as.vector(D_gcyr[,cI,,rI]) )
+          }else{
+            Mean_cmr[cI,mI,rI] = 0
+          }
+        }
+        for( zI in 1:dim(E_zctm)[1] ){
+          for( tI in 1:dim(E_zctm)[3] ){
+            if(rI==0){
+              index_tmp = which.min( (prop_zctm[,cI,tI,mI]-quantiles[zI])^2 )
+              E_zctm[zI,cI,tI,mI] = TmbData$Z_gm[order_g[index_tmp],mI]
+            }
+            if(rI>=1){
+              index_tmp = which.min( (prop_zctmr[,cI,tI,mI,rI]-quantiles[zI])^2 )
+              E_zctmr[zI,cI,tI,mI,rI] = TmbData$Z_gm[order_g[index_tmp],mI] - Mean_cmr[cI,mI,rI]
+            }
+          }}
+      }
+    }}
+  SE_zctm = apply( E_zctmr, MARGIN=1:4, FUN=sd )
+  Edge_zctm = abind::abind( "Estimate"=E_zctm, "Std. Error"=SE_zctm, along=5 )
+  dimnames(Edge_zctm)[[1]] = paste0("quantile_",quantiles)
+  
+  # transform matrix into a dataframe 
+  
+  Edge_df <- reshape2::melt(Edge_zctm)
+  Edge_df$Var2 <- NULL
+  
+  # replace axis numbers with names 
+#   for(i in 1:length(Z_gm_axes)) {
+#     Edge_df$Var4 <- gsub(paste0(i), paste0(Z_gm_axes[i]), Edge_df$Var4)
+#   }
+
+  colnames(Edge_df) <- c("quantile","year","axis","quantity","value")
+  Edge_df$year <- year_labels[Edge_df$year]  # DANGER--would prefer to carry through real year values
+  
+  # eliminate unwanted years from Edge_df
+#   Edge_df <- Edge_df[Edge_df$year %in% Years2Include, ]
+  
+  # Rename
+  Edge_df$axis <- ifelse(Edge_df$axis == 1, "Longitude", "Latitude")
+
+  # Slight formatting to get things to be a bit easier to plot
+  Edge_df_mu <- Edge_df %>%
+      filter(., quantity == "Estimate") %>%
+      pivot_wider(., names_from = axis, values_from = value) %>%
+      dplyr::select(., -quantity)
+  colnames(Edge_df_mu)[3:4]<- c("Longitude_Mean", "Latitude_Mean")
+
+  Edge_df_sd <- Edge_df %>%
+      filter(., quantity == "Std. Error") %>%
+      pivot_wider(., names_from = axis, values_from = value) %>%
+      dplyr::select(., -quantity)
+  colnames(Edge_df_sd)[3:4]<- c("Longitude_SD", "Latitude_SD")
+
+  Edge_df_out <- Edge_df_mu %>%
+      left_join(., Edge_df_sd)
+  
+  # Return list of stuff
+  
+  return(Edge_df_out)
+}
+
+
+plot_cog <- function(cog_df, df_crs = "+proj=utm +zone=19 +datum=WGS84 +units=km +no_defs", plot_crs = 4326, summarize = TRUE, land_sf, xlim, ylim, nice_category_names, land_color = "#d9d9d9", color_pal = NULL, out_dir) {
+  if (FALSE) {
+    tar_load(vast_cog)
+    cog_df <- vast_cog
+    df_crs <- "+proj=utm +zone=19 +datum=WGS84 +units=km +no_defs"
+    plot_crs <- 4326
+    summarize <- TRUE
+    tar_load(land_sf)
+    xlim <- c(-80, -55)
+    ylim <- c(35, 50)
+    nice_category_names <- nice_category_names
+    land_color <- "#d9d9d9"
+    out_dir <- paste0(res_root, "plots_maps")
+
+    cog_df = cog_res
+    df_crs = "+proj=utm +zone=19 +datum=WGS84 +units=km +no_defs"
+    plot_crs = 4326
+    summarize = TRUE
+    land_sf = land_use
+    xlim = xlim_use
+    ylim = ylim_use
+    nice_category_names = nice_category_names
+    land_color = "#d9d9d9"
+    color_pal = NULL
+    out_dir = here("results/vast")
+  }
+
+  # Plot is either going to be annual or each individual season
+  if (summarize) {
+    cog_df <- cog_df %>%
+      group_by(., Year, Category, .drop = FALSE) %>%
+      summarize_at(., vars(c("Lon", "Lat", "Lon_Min", "Lon_Max", "Lat_Min", "Lat_Max")), mean, na.rm = TRUE)
+
+    # First, the map.
+    cog_sf <- st_as_sf(cog_df, coords = c("Lon", "Lat"), crs = df_crs)
+
+    # Transform to be in WGS84
+    cog_sf_wgs84 <- st_transform(cog_sf, crs = plot_crs)
+
+    # Base map
+    cog_plot <- ggplot() +
+      geom_sf(data = cog_sf_wgs84, aes(fill = Year), size = 2, shape = 21) +
+      scale_fill_viridis_c(name = "Year", limits = c(min(cog_sf_wgs84$Year), max(cog_sf_wgs84$Year))) +
+      geom_sf(data = land_sf, fill = land_color, lwd = 0.2, na.rm = TRUE) +
+      coord_sf(xlim = xlim, ylim = ylim, expand = FALSE) +
+      theme(panel.background = element_rect(fill = "white"), panel.border = element_rect(fill = NA), axis.text.x = element_blank(), axis.text.y = element_blank(), axis.ticks = element_blank(), axis.title = element_blank(), plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt"))
+
+    # Now, the lon/lat time series
+    lon_lat_df <- cog_sf_wgs84 %>%
+      data.frame(st_coordinates(.))
+    lon_lat_min <- st_as_sf(cog_df, coords = c("Lon_Min", "Lat_Min"), crs = df_crs) %>%
+      st_transform(., plot_crs) %>%
+      data.frame(st_coordinates(.)) %>%
+      dplyr::select(c("X", "Y"))
+
+    names(lon_lat_min) <- c("Lon_Min_WGS", "Lat_Min_WGS")
+    lon_lat_max <- st_as_sf(cog_df, coords = c("Lon_Max", "Lat_Max"), crs = df_crs) %>%
+      st_transform(., plot_crs) %>%
+      data.frame(st_coordinates(.)) %>%
+      dplyr::select(c("X", "Y"))
+    names(lon_lat_max) <- c("Lon_Max_WGS", "Lat_Max_WGS")
+
+    lon_lat_df <- cbind(lon_lat_df, lon_lat_min, lon_lat_max)
+    names(lon_lat_df)[8:9] <- c("Lon", "Lat")
+    lon_lat_df$Date <- as.Date(paste0(lon_lat_df$Year, "-06-15"))
+
+    if (!is.null(color_pal)) {
+      colors_use <- color_pal
+    } else {
+      color_pal <- c("#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854")
+      colors_use <- color_pal[1:length(unique(lon_lat_df$Category))]
+    }
+
+    lon_ts <- ggplot() +
+      geom_ribbon(data = lon_lat_df, aes(x = Date, ymin = Lon_Min_WGS, ymax = Lon_Max_WGS), fill = "#66c2a5", alpha = 0.3) +
+      geom_line(data = lon_lat_df, aes(x = Date, y = Lon), color = "#66c2a5", lwd = 2) +
+      # scale_fill_manual(name = "Category", values = '#66c2a5') +
+      scale_x_date(date_breaks = "5 year", date_labels = "%Y") +
+      ylab("Center of longitude") +
+      xlab("Date") +
+      theme_bw() +
+      theme(legend.title = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+    lat_ts <- ggplot() +
+      geom_ribbon(data = lon_lat_df, aes(x = Date, ymin = Lat_Min_WGS, ymax = Lat_Max_WGS), fill = "#66c2a5", alpha = 0.3) +
+      geom_line(data = lon_lat_df, aes(x = Date, y = Lat), color = "#66c2a5", lwd = 2) +
+      # scale_fill_manual(name = "Category", values = '#66c2a5') +
+      scale_x_date(date_breaks = "5 year", date_labels = "%Y") +
+      ylab("Center of latitude") +
+      xlab("Date") +
+      theme_bw() +
+      theme(legend.title = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+    plot_out <- (cog_plot) / (lon_ts + lat_ts) + plot_layout(ncol = 1, nrow = 2, widths = c(0.75, 1), heights = c(0.75, 1))
+  }
+
+  # Save and return it
+  ggsave(plot_out, file = paste(out_dir, "/COG_", "_", nice_category_names, ".jpg", sep = ""))
+  return(plot_out)
+}
 
 if (FALSE) {
   # JSDM factors

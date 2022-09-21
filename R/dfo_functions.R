@@ -104,26 +104,27 @@ dfo_get_tows<-function(dfo_GSINF, dfo_GSMISSIONS, out_dir){
 #' @return A "tidy" dataframe of species occurrences. This file is also saved in out_dir.
 #' 
 #' @export
-dfo_make_tidy_occu<-function(dfo_GSCAT, dfo_tows, species_table, out_dir){
+dfo_make_tidy_occu<-function(dfo_GSCAT, dfo_tows, species_table, spp_or_group, out_dir){
   
   # For debugging
   if(FALSE){
-    dfo_GSCAT = dfo_GSCAT_load(here::here("scratch/aja/TargetsSDM/data/dfo/raw"))
-    dfo_tows = readRDS(here::here("scratch/aja/TargetsSDM/data/dfo/clean/dfo_tows.rds"))
-    species_table = species_read_csv(here::here("scratch/aja/TargetsSDM/data/supporting"))
+    dfo_GSCAT = dfo_GSCAT_load(here::here("data/dfo/raw"))
+    dfo_tows = readRDS(here::here("data/dfo/clean/dfo_tows.rds"))
+    species_table = species_read_csv(here::here("data/supporting"))
     out_dir = here::here("scratch/aja/TargetsSDM/data/dfo/clean")
   }
   
   # Create a long dataframe containing biomass and abundance data for all ID/species from GSCAT; this should be a presence only dataset
-  presence_data<- dfo_GSCAT %>%
-    mutate(ID = paste(MISSION, SETNO, sep="")) %>% # create a unique ID
-    rename(., DFO_SPEC = SPEC) %>% # renaming to keep DFO/NMFS codes clear
-    dplyr::filter(DFO_SPEC %in% c(species_table$DFO_SPEC)) %>%  # keep only species in species_table
-    mutate(BIOMASS = ifelse(TOTWGT == 0 & TOTNO > 0, 0.001, TOTWGT)) %>%  # if TOTNO/ABUNDANCE > 0 but TOTWGT is 0, make TOTWGT non-zero (set equal to 0.001) %>%
-    rename("ABUNDANCE" = "TOTNO") %>%   # rename TOTNO to ABUNDANCE
-    mutate(PRESENCE = ifelse(ABUNDANCE > 0, 1, 0)) %>%  # PRESENCE = 1 if ABUNDANCE >=1, PRESENCE = 0 if ABUNDANCE = 0   
-    dplyr::select(ID, DFO_SPEC, PRESENCE, BIOMASS, ABUNDANCE) # keep only cols of interest
-  
+  if(spp_or_group == "spp"){
+    presence_data <- dfo_GSCAT %>%
+      mutate(ID = paste(MISSION, SETNO, sep = "")) %>% # create a unique ID
+      rename(., DFO_SPEC = SPEC) %>% # renaming to keep DFO/NMFS codes clear
+      dplyr::filter(DFO_SPEC %in% c(species_table$DFO_SPEC)) %>% # keep only species in species_table
+      mutate(BIOMASS = ifelse(TOTWGT == 0 & TOTNO > 0, 0.001, TOTWGT)) %>% # if TOTNO/ABUNDANCE > 0 but TOTWGT is 0, make TOTWGT non-zero (set equal to 0.001) %>%
+      rename("ABUNDANCE" = "TOTNO") %>% # rename TOTNO to ABUNDANCE
+      mutate(PRESENCE = ifelse(ABUNDANCE > 0, 1, 0)) %>% # PRESENCE = 1 if ABUNDANCE >=1, PRESENCE = 0 if ABUNDANCE = 0
+      dplyr::select(ID, DFO_SPEC, PRESENCE, BIOMASS, ABUNDANCE) # keep only cols of interest
+      
   # Need to rescale tows...
   presence_data<- presence_data %>%
     left_join(., dfo_tows) %>%
@@ -137,14 +138,51 @@ dfo_make_tidy_occu<-function(dfo_GSCAT, dfo_tows, species_table, out_dir){
     left_join(., species_table, by = "DFO_SPEC")
   
   # Create full presence absence dataset
-  dfo_tidy_occu<- all_ID_SPEC_possibilities %>% 
-    dplyr::left_join(presence_data, by = c("ID", "DFO_SPEC")) %>%                           
-    # populate "possibilities" dataset with presence data 
-    mutate(PRESENCE = ifelse(is.na(PRESENCE) == T, 0, PRESENCE)) %>%      
-    mutate(BIOMASS = ifelse(is.na(BIOMASS) == T, 0.000, BIOMASS)) %>%    
-    mutate(ABUNDANCE = ifelse(is.na(ABUNDANCE) == T, 0, ABUNDANCE)) %>% 
-    dplyr::select(ID, NMFS_SVSPP, DFO_SPEC, PRESENCE, BIOMASS, ABUNDANCE) # keep only cols of interest       
+  dfo_tidy_occu <- all_ID_SPEC_possibilities %>%
+    dplyr::left_join(presence_data, by = c("ID", "DFO_SPEC")) %>%
+    # populate "possibilities" dataset with presence data
+    mutate(PRESENCE = ifelse(is.na(PRESENCE) == T, 0, PRESENCE)) %>%
+    mutate(BIOMASS = ifelse(is.na(BIOMASS) == T, 0.000, BIOMASS)) %>%
+    mutate(ABUNDANCE = ifelse(is.na(ABUNDANCE) == T, 0, ABUNDANCE)) %>%
+    dplyr::select(ID, NMFS_SVSPP, DFO_SPEC, PRESENCE, BIOMASS, ABUNDANCE) # keep only cols of interest
   
+  } else if(spp_or_group == "group"){
+    presence_data <- dfo_GSCAT %>%
+      mutate(ID = paste(MISSION, SETNO, sep = "")) %>% # create a unique ID
+      rename(., DFO_SPEC = SPEC) %>% # renaming to keep DFO/NMFS codes clear
+      dplyr::filter(DFO_SPEC %in% c(species_table$DFO_SPEC)) %>% # keep only species in species_table
+      dplyr::left_join(., species_table, by = c("DFO_SPEC" = "DFO_SPEC")) %>%
+      mutate(BIOMASS = ifelse(TOTWGT == 0 & TOTNO > 0, 0.001, TOTWGT)) %>% # if TOTNO/ABUNDANCE > 0 but TOTWGT is 0, make TOTWGT non-zero (set equal to 0.001) %>%
+      rename("ABUNDANCE" = "TOTNO") %>% # rename TOTNO to ABUNDANCE
+      dplyr::group_by(ID, Group) %>%
+      dplyr::summarise(ABUNDANCE = sum(ABUNDANCE), BIOMASS = sum(BIOMASS)) %>%
+      mutate(PRESENCE = ifelse(ABUNDANCE > 0, 1, 0)) %>% # PRESENCE = 1 if ABUNDANCE >=1, PRESENCE = 0 if ABUNDANCE = 0
+      dplyr::select(ID, Group, PRESENCE, BIOMASS, ABUNDANCE) # keep only cols of interest
+    
+  # Need to rescale tows...
+  presence_data<- presence_data %>%
+    left_join(., dfo_tows) %>%
+    mutate(., BIOMASS = (1.75*BIOMASS)/DIST) %>%
+    dplyr::select(ID, Group, PRESENCE, BIOMASS, ABUNDANCE) %>% # keep only cols of interest
+    ungroup()
+  
+  # Create a dataframe of all possible survey ID/species combinations
+  all_ID_SPEC_possibilities<- tibble::tibble(ID = rep(dfo_tows$ID, length(unique(species_table$Group)))) %>% 
+    dplyr::arrange(ID) %>% 
+    mutate(Group = rep(unique(species_table$Group), length(dfo_tows$ID))) 
+  
+  # Create full presence absence dataset
+  dfo_tidy_occu <- all_ID_SPEC_possibilities %>%
+    dplyr::left_join(presence_data, by = c("ID", "Group")) %>%
+    # populate "possibilities" dataset with presence data
+    mutate(PRESENCE = ifelse(is.na(PRESENCE) == T, 0, PRESENCE)) %>%
+    mutate(BIOMASS = ifelse(is.na(BIOMASS) == T, 0.000, BIOMASS)) %>%
+    mutate(ABUNDANCE = ifelse(is.na(ABUNDANCE) == T, 0, ABUNDANCE)) %>%
+    dplyr::select(ID, Group, PRESENCE, BIOMASS, ABUNDANCE) %>% # keep only cols of interest
+    rename("DFO_SPEC" = Group) %>%
+    mutate(., "NMFS_SVSPP" = DFO_SPEC)
+  }
+
   # Return and save it
   saveRDS(dfo_tidy_occu, file = paste(out_dir, "dfo_tidy_occu.rds", sep = "/"))
   return(dfo_tidy_occu)
