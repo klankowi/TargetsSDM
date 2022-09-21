@@ -34,8 +34,8 @@ sf_use_s2(FALSE)
 
 # Model fitting stuffs
 fit_type <- "ST"
-nmfs_species_code <- 73
-nice_category_names <- "Atlantic_cod_BetaRWSp"
+nmfs_species_code <- "Benthos"
+nice_category_names <- "Benthos_SOE_BetaRWSpST"
 depth_cut <- 400
 fit_year_min <- 1985
 fit_year_max <- 2014 # INCLUDES this year (less than or equal to)
@@ -53,7 +53,7 @@ hab_formula <- ~ Season + bs(Depth, degree = 2, intercept = FALSE) + bs(SST_seas
 # hab_env_coeffs_n <- max(0, length(attributes(terms.formula(hab_formula))$term.labels) - 2) # Season and year
 hab_env_coeffs_n <- length(attributes(terms.formula(hab_formula))$term.labels) - 1 # Seasonal
 if (fit_type == "ST") {
-  field_config <- c("Omega1" = 1, "Epsilon1" = 0, "Omega2" = 1, "Epsilon2" = 0)
+  field_config <- c("Omega1" = 1, "Epsilon1" = 1, "Omega2" = 1, "Epsilon2" = 1)
   rho_config <- c("Beta1" = 2, "Beta2" = 2, "Epsilon1" = 0, "Epsilon2" = 0)
 } else {
   field_config <- c("Omega1" = 0, "Epsilon1" = 0, "Omega2" = 0, "Epsilon2" = 0)
@@ -65,11 +65,14 @@ catch_formula <- ~ factor(Survey)
 # strata_use <- data.frame("STRATA" = c("NMFS_and_DFO", "DFO", "NMFS", "Hague_Region", "DFO_Hague_Region", "NMFS_Hague_Region"))
 strata_use <- data.frame("STRATA" = c("All", "DFO", "NMFS", "GoM", "SNE_and_MAB", "Scotian_Shelf"))
 
-run_final_model <- FALSE
+run_final_model <- TRUE
 
 # Dealing with 100/0 issues
 year_make_na <- NULL
 season_make_na<- NULL
+
+# species or group?
+spp_or_group<- "group"
 
 # Model output
 res_root <- box_path(box_group = "Mills Lab", "Projects/sdm_workflow/targets_output")
@@ -182,7 +185,7 @@ list(
   # DFO tidy occurrence data
   tar_target(
     name = dfo_tidy_occu,
-    command = dfo_make_tidy_occu(dfo_GSCAT = dfo_GSCAT, dfo_tows = dfo_tows, species_table = species, out_dir = here::here("data/dfo/clean"))
+    command = dfo_make_tidy_occu(dfo_GSCAT = dfo_GSCAT, dfo_tows = dfo_tows, species_table = species, spp_or_group = spp_or_group, out_dir = here::here("data/dfo/clean"))
   ),
 
   # NMFS directory
@@ -207,7 +210,7 @@ list(
   # NMFS tidy occurrence data
   tar_target(
     name = nmfs_tidy_occu,
-    command = nmfs_make_tidy_occu(nmfs_raw = nmfs, nmfs_tows = nmfs_tows, species_table = species, out_dir = here::here("data/nmfs/clean"))
+    command = nmfs_make_tidy_occu(nmfs_raw = nmfs, nmfs_tows = nmfs_tows, species_table = species, spp_or_group = spp_or_group, out_dir = here::here("data/nmfs/clean"))
   ),
 
   # Combine tow data

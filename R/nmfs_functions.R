@@ -58,13 +58,13 @@ nmfs_get_tows<-function(nmfs_raw, out_dir){
 #' @return A "tidy" dataframe of species occurrences. This file is also saved in out_dir.
 #' 
 #' @export
-nmfs_make_tidy_occu<-function(nmfs_raw, nmfs_tows, species_table, out_dir){
+nmfs_make_tidy_occu<-function(nmfs_raw, nmfs_tows, species_table, spp_or_group, out_dir){
   
   # For debugging
   if(FALSE){
-    nmfs_raw = nmfs_load(here::here("scratch/aja/targets_flow/data/nmfs/raw"))
-    nmfs_tows = nmfs_load(here::here("scratch/aja/targets_flow/data/nmfs/raw"))
-    species_table = species_read_csv(here::here("scratch/aja/targets_flow/data/supporting"))
+    nmfs_raw = nmfs_load(here::here("data/nmfs/raw"))
+    nmfs_tows = nmfs_load(here::here("data/nmfs/raw"))
+    species_table = species_read_csv(here::here("data/supporting"))
     out_dir = here::here("scratch/aja/targets_flow/data/nmfs/clean")
   }
   
@@ -72,18 +72,19 @@ nmfs_make_tidy_occu<-function(nmfs_raw, nmfs_tows, species_table, out_dir){
   colnames(nmfs_raw)<- toupper(colnames(nmfs_raw))
   colnames(nmfs_tows)<- toupper(colnames(nmfs_tows))
   
-  # Create a long dataframe containing biomass and abundance data for all ID/species; this should be a presence only dataset
-  presence_data<- nmfs_raw %>% 
-    dplyr::mutate(SVSPP = as.double(SVSPP)) %>% 
-    dplyr::filter(SVSPP %in% c(species_table$NMFS_SVSPP)) %>% #keep only Shackell species
-    dplyr::group_by(ID, SVSPP) %>% 
-    dplyr::summarise(ABUNDANCE = sum(ABUND_ADJ), BIOMASS = sum(BIOM_ADJ)) %>% 
-    dplyr::mutate(PRESENCE = ifelse(ABUNDANCE > 0, 1, 0)) %>% #should all be 1s
-    #presence = 1 if abundance >=1, presence = 0 if abundance = 0
-    dplyr::select(ID, SVSPP, PRESENCE, BIOMASS, ABUNDANCE) %>%
-    rename(., "NMFS_SVSPP" = SVSPP) %>%
-    ungroup() %>%
-    mutate(., ID = as.character(ID))
+  # Create a long dataframe containing biomass and abundance data for all ID/species; this should be a presence only dataset. 
+  if(spp_or_group == "spp"){
+    presence_data <- nmfs_raw %>%
+      dplyr::mutate(SVSPP = as.double(SVSPP)) %>%
+      dplyr::filter(SVSPP %in% c(species_table$NMFS_SVSPP)) %>% # keep only Shackell species
+      dplyr::group_by(ID, SVSPP) %>%
+      dplyr::summarise(ABUNDANCE = sum(ABUND_ADJ), BIOMASS = sum(BIOM_ADJ)) %>%
+      dplyr::mutate(PRESENCE = ifelse(ABUNDANCE > 0, 1, 0)) %>% # should all be 1s
+      # presence = 1 if abundance >=1, presence = 0 if abundance = 0
+      dplyr::select(ID, SVSPP, PRESENCE, BIOMASS, ABUNDANCE) %>%
+      rename(., "NMFS_SVSPP" = SVSPP) %>%
+      ungroup() %>%
+      mutate(., ID = as.character(ID))
     
   # Create a dataframe of all possible survey ID/species combinations
   all_ID_SPEC_possibilities<- tibble::tibble(ID = rep(nmfs_tows$ID, length(unique(species_table$NMFS_SVSPP)))) %>% 
@@ -101,6 +102,38 @@ nmfs_make_tidy_occu<-function(nmfs_raw, nmfs_tows, species_table, out_dir){
     mutate(ABUNDANCE = ifelse(is.na(ABUNDANCE) == T, 0, ABUNDANCE)) %>%  
     dplyr::select(ID, NMFS_SVSPP, DFO_SPEC, PRESENCE, BIOMASS, ABUNDANCE) %>% #keep only cols of interest
     mutate(., ID = as.character(ID))
+  } else if(spp_or_group == "group"){
+    presence_data <- nmfs_raw %>%
+      dplyr::mutate(SVSPP = as.double(SVSPP)) %>%
+      dplyr::filter(SVSPP %in% c(species_table$NMFS_SVSPP)) %>% # keep only Shackell species
+      dplyr::left_join(., species_table, by = c("SVSPP" = "NMFS_SVSPP")) %>%
+      dplyr::group_by(ID, Group) %>%
+      dplyr::summarise(ABUNDANCE = sum(ABUND_ADJ), BIOMASS = sum(BIOM_ADJ)) %>%
+      dplyr::mutate(PRESENCE = ifelse(ABUNDANCE > 0, 1, 0)) %>% # should all be 1s
+      # presence = 1 if abundance >=1, presence = 0 if abundance = 0
+      dplyr::select(ID, Group, PRESENCE, BIOMASS, ABUNDANCE) %>%
+      ungroup() %>%
+      mutate(., ID = as.character(ID))
+    
+  # Create a dataframe of all possible survey ID/species combinations
+  all_ID_SPEC_possibilities<- tibble::tibble(ID = rep(nmfs_tows$ID, length(unique(species_table$Group)))) %>% 
+    dplyr::arrange(ID) %>% 
+    mutate(Group = rep(unique(species_table$Group), length(nmfs_tows$ID))) %>%
+    mutate(., ID = as.character(ID))
+  
+  # Create full presence absence dataset
+  nmfs_tidy_occu <- all_ID_SPEC_possibilities %>%
+    dplyr::left_join(presence_data, by = c("ID", "Group")) %>%
+    # populate "possibilities" dataset with presence data
+    mutate(PRESENCE = ifelse(is.na(PRESENCE) == T, 0, PRESENCE)) %>%
+    mutate(BIOMASS = ifelse(is.na(BIOMASS) == T, 0.000, BIOMASS)) %>%
+    mutate(ABUNDANCE = ifelse(is.na(ABUNDANCE) == T, 0, ABUNDANCE)) %>%
+    dplyr::select(ID, Group, PRESENCE, BIOMASS, ABUNDANCE) %>% # keep only cols of interest
+    mutate(., ID = as.character(ID)) %>%
+    rename(., "NMFS_SVSPP" = Group) %>%
+    mutate(., "DFO_SPEC" = NMFS_SVSPP)
+  }
+
 
   # Return and save it
   saveRDS(nmfs_tidy_occu, file = paste(out_dir, "nmfs_tidy_occu.rds", sep = "/"))
