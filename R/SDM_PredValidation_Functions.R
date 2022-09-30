@@ -3,6 +3,7 @@
 #####
 library(PresenceAbsence)
 library(MLmetrics)
+library(ggstar)
 
 # Helper functions: correlation coefficient and bias ----------------------
 corrcoeff_func_simp<- function(df){
@@ -29,7 +30,7 @@ bias_func_simp<- function(df){
 }
 
 # Main Taylor Diagram function --------------------------------------------
-taylor_diagram_func<- function(dat, obs = "obs", mod = "mod", group = NULL, out.file, grad.corr.lines = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1), pcex = 1, cex.axis = 1, normalize = TRUE, mar = c(5, 4, 6, 6), sd.r = 1, pt.col = NULL, pt.cols = NULL, shapes = NULL, example = FALSE) {
+taylor_diagram_func<- function(dat, obs = "obs", mod = "mod", group = NULL, out.file, grad.corr.lines = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1), pcex = 1, cex.axis = 1, normalize = TRUE, mar = c(5, 4, 6, 6), sd.r = 1, fill.cols = NULL, color.cols = NULL, shapes = NULL, alpha = 1, example = FALSE) {
   
   ## Details
   # This function plots a Taylor Diagram of model prediction accuracy, sumamrizing the root mean square error, the coefficient of determination, and the ratio of standard deviations.
@@ -227,7 +228,7 @@ taylor_diagram_func<- function(dat, obs = "obs", mod = "mod", group = NULL, out.
   
   # Add in reference point
   plot.all<- plot.gamma +
-    geom_point(aes(x = sd.r, y = 0), color = "black", size = 4)
+    geom_star(aes(x = sd.r, y = 0), starshape = 1, fill = "#D4AF37", size = 6)
   # ggsave(paste("~/Box/Mills Lab/Projects/SDM-convergence/temp results/Model Comparisons/", "TemplateTaylorDiagram.jpg", sep = ""), plot.all)
   
   # Add in reference points
@@ -237,8 +238,9 @@ taylor_diagram_func<- function(dat, obs = "obs", mod = "mod", group = NULL, out.
   
   if(is.null(group)){
     plot.td<- plot.all +
-      geom_point(data = mod.td, aes(x = TD.X, y = TD.Y), color = pt.col, size = 7) +
-      geom_text(aes(label = "Correlation coefficient", x = 0.8, y = 0.75), angle = -38)
+      geom_point(data = mod.td, aes(x = TD.X, y = TD.Y), color = color.cols, fill = fill.cols, shape = shapes, size = 7) +
+      geom_text(aes(label = "Correlation coefficient", x = 0.8, y = 0.75), size = 6, fontface = "bold", angle = -38) +
+      theme(axis.title = element_text(face = "bold", size = 16), axis.text = element_text(size = 16))
   } else {
     # text.label.pos<- if(max(mod.td$TD.X) <= 1 & max(mod.td$TD.Y) <= 1){
     #   xpos.use<- 0.725
@@ -259,11 +261,13 @@ taylor_diagram_func<- function(dat, obs = "obs", mod = "mod", group = NULL, out.
     xpos.use<- coeffd.labs$x[7]+0.05
     ypos.use<- coeffd.labs$y[7]+0.05
     
-    plot.td<- plot.all +
-      geom_point(data = mod.td, aes_string(x = "TD.X", y = "TD.Y", color = group, shape = group), size = 7) +
-      scale_color_manual(name = "Group", values = pt.cols) +
+    plot.td <- plot.all +
+      geom_point(data = mod.td, aes_string(x = "TD.X", y = "TD.Y", color = group, fill = group, shape = group), alpha = alpha, size = 7) +
+      scale_color_manual(name = "Group", values = color.cols) +
+      scale_fill_manual(name = "Group", values = fill.cols) +
       scale_shape_manual(name = "Group", values = shapes) +
-      geom_text(aes(label = "Correlation coefficient", x = xpos.use, y = ypos.use), angle = -42)
+      geom_text(aes(label = "Correlation coefficient", x = xpos.use, y = ypos.use), size = 6, fontface = "bold", angle = -42) +
+      theme(axis.title = element_text(face = "bold", size = 16), axis.text = element_text(size = 16))
   }
   
   ggsave(out.file, plot.td, width = 11, height = 8, units = "in")

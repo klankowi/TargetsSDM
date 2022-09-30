@@ -4,7 +4,7 @@ pred_template_load <- function(pred_template_dir) {
   if (FALSE) {
     tar_load(pred_template_dir)
   }
-
+  
   # Load the raster template gird
   pred_template_rast <- raster(paste(pred_template_dir, "mod_pred_template.grd", sep = "/"))
 
@@ -2410,15 +2410,15 @@ plot_vast_index_timeseries <- function(index_res_df, year_stop = NULL, index_sca
     paneling <- "none"
     color_pal <- NULL
     out_dir <- here::here("", "Objective 3/Temp_Results")
-
-    index_res_df <- vast_bio
-    index_scale <- "raw"
-    nice_category_names <- "summer_flounder"
-    nice_xlab <- "Year"
-    nice_ylab <- "Biomass index (metric tons)"
-    paneling <- "none"
-    color_pal <- NULL
-    out_dir <- here("results/vast")
+    
+    index_res_df = bio_index_df
+    index_scale = "log"
+    nice_category_names = "Atlantic cod"
+    nice_xlab = "Year-Season"
+    nice_ylab = "Biomass index (metric tons)"
+    paneling = "none"
+    color_pal = NULL
+    out_dir = date_dir
   }
 
   if (paneling == "none") {
@@ -3146,7 +3146,7 @@ vast_mesh_to_sf <- function(vast_fit, crs_transform = "+proj=longlat +datum=WGS8
 #'
 #' @export
 
-vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, spatial_var, nice_category_names, pred_label, mask, all_times = all_times, plot_times = NULL, land_sf, xlim, ylim, lab_lat = 33.75, lab_lon = -67.5, panel_or_gif = "gif", out_dir, land_color = "#d9d9d9", panel_cols = NULL, panel_rows = NULL, ...) {
+vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, pred_grid, spatial_var, nice_category_names, pred_label, mask, all_times = all_times, plot_times = NULL, land_sf, xlim, ylim, lab_lat = 33.75, lab_lon = -67.5, panel_or_gif = "gif", out_dir, land_color = "#d9d9d9", panel_cols = NULL, panel_rows = NULL, ...) {
   if (FALSE) {
     tar_load(vast_fit)
     template <- raster("~/GitHub/sdm_workflow/scratch/aja/TargetsSDM/data/supporting/HighResTemplate.grd")
@@ -3188,6 +3188,25 @@ vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, spatial_var, nice_ca
     lab_lon <- -67.5
     out_dir <- paste0(res_root, "plots_maps")
     land_color <- "#d9d9d9"
+
+    vast_fit = fit
+    manual_pred_df = NULL
+    spatial_var = "D_gct"
+    nice_category_names = "Atlantic cod"
+    pred_label = "Obs"
+    mask = mask
+    all_times = all_times
+    plot_times = NULL
+    land_sf = land_sf
+    xlim = c(-78.5, -56)
+    ylim = c(35, 48)
+    lab_lat = 36
+    lab_lon = -60
+    panel_or_gif = "gif"
+    out_dir = date_dir
+    land_color = "#d9d9d9"
+
+
   }
 
   if (is.null(manual_pred_df)) {
@@ -3200,7 +3219,8 @@ vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, spatial_var, nice_ca
     # Getting prediction array
     pred_array <- vast_fit$Report[[{{ spatial_var }}]]
     if (spatial_var == "D_gct") {
-      pred_array <- log(pred_array + 1)
+      pred_array <- log(pred_array)
+      pred_array<- drop_units(pred_array)
     }
 
     # Getting time info
@@ -3211,8 +3231,15 @@ vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, spatial_var, nice_ca
     }
 
     # Getting spatial information
-    spat_data <- vast_fit$extrapolation_list
-    loc_g <- spat_data$Data_Extrap[which(spat_data$Data_Extrap[, "Include"] > 0), c("Lon", "Lat")]
+    if(vast_fit$spatial_list$fine_scale == TRUE){
+        spat_data <- vast_fit$extrapolation_list
+        locs <- spat_data$Data_Extrap[which(spat_data$Data_Extrap[, "Include"] > 0), c("Lon", "Lat")] %>%
+        distinct()
+    } else {
+        spat_data <- vast_fit$spatial_list
+        locs <- spat_data$latlon_s[1:spat_data$n_x,]
+    }
+    
     CRS_orig <- sp::CRS("+proj=longlat")
     CRS_proj <- sp::CRS(spat_data$projargs)
     land_sf <- st_crop(land_sf, xmin = xlim[1], ymin = ylim[1], xmax = xlim[2], ymax = ylim[2])
@@ -3220,12 +3247,12 @@ vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, spatial_var, nice_ca
     # Looping through...
     rasts_out <- vector("list", dim(pred_array)[length(dim(pred_array))])
     rasts_range <- pred_array
-    rast_lims_min <- ifelse(spatial_var %in% c("D_gct", "R1_gct", "R2_gct", "P1_gct", "P2_gct"), 0, min(rasts_range))
-    rast_lims_max <- ifelse(spatial_var %in% c("D_gct", "R1_gct", "R2_gct", "P1_gct", "P2_gct"), round(max(rasts_range) + 0.0000001, 2), max(rasts_range))
-    rast_lims <- c(rast_lims_min, rast_lims_max)
+    # rast_lims_min <- ifelse(spatial_var %in% c("D_gct", "R1_gct", "R2_gct", "P1_gct", "P2_gct"), 0, min(rasts_range))
+    # rast_lims_max <- ifelse(spatial_var %in% c("D_gct", "R1_gct", "R2_gct", "P1_gct", "P2_gct"), round(max(rasts_range) + 0.0000001, 2), max(rasts_range))
+    rast_lims <- c(min(rasts_range), max(rasts_range))
 
     if (length(dim(pred_array)) == 2) {
-      data_df <- data.frame(loc_g, z = pred_array)
+      data_df <- data.frame(locs, z = pred_array)
 
       # Interpolation
       pred_df <- na.omit(data.frame("x" = data_df$Lon, "y" = data_df$Lat, "layer" = data_df$z))
@@ -3255,22 +3282,30 @@ vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, spatial_var, nice_ca
       return(plot_out)
     } else {
       for (tI in 1:dim(pred_array)[3]) {
-        data_df <- data.frame(loc_g, z = pred_array[, 1, tI])
+        data_df <- data.frame(locs, z = pred_array[, 1, tI])
 
         # Interpolation
-        pred_df <- na.omit(data.frame("x" = data_df$Lon, "y" = data_df$Lat, "layer" = data_df$z))
-        pred_df_interp <- interp(pred_df[, 1], pred_df[, 2], pred_df[, 3],
-          duplicate = "mean", extrap = TRUE,
-          xo = seq(-87.99457, -57.4307, length = x_dim_length),
-          yo = seq(22.27352, 48.11657, length = y_dim_length)
-        )
-        pred_df_interp_final <- data.frame(expand.grid(x = pred_df_interp$x, y = pred_df_interp$y), z = c(round(pred_df_interp$z, 2)))
-        pred_sp <- st_as_sf(pred_df_interp_final, coords = c("x", "y"), crs = CRS_orig)
+        # pred_df <- na.omit(data.frame("x" = data_df$Lon, "y" = data_df$Lat, "layer" = data_df$z))
+        # pred_df_interp <- interp(pred_df[, 1], pred_df[, 2], pred_df[, 3],
+        #   duplicate = "mean", extrap = TRUE,
+        #   xo = seq(-87.99457, -57.4307, length = 113),
+        #   yo = seq(22.27352, 48.11657, length = 133)
+        # )
+        # pred_df_interp_final <- data.frame(expand.grid(x = pred_df_interp$x, y = pred_df_interp$y), z = c(round(pred_df_interp$z, 2)))
+        # pred_sp <- st_as_sf(pred_df_interp_final, coords = c("x", "y"), crs = CRS_orig)
+
+        # pred_df_temp <- pred_sp[which(st_intersects(pred_sp, mask, sparse = FALSE) == TRUE), ]
+        # coords_keep <- as.data.frame(st_coordinates(pred_df_temp))
+        # row.names(coords_keep) <- NULL
+        # pred_df_use <- data.frame(cbind(coords_keep, "z" = as.numeric(pred_df_temp$z)))
+        # names(pred_df_use) <- c("x", "y", "z")
+
+        krig_mod <- Krig(data.frame("x" = data_df$Lon, "y" = data_df$Lat), data_df$z)
+        pred_df_interp <- as.data.frame(interpolate(pred_grid, krig_mod), xy = TRUE)
+        pred_sp <- st_as_sf(pred_df_interp, coords = c("x", "y"), crs = CRS_orig)
 
         pred_df_temp <- pred_sp[which(st_intersects(pred_sp, mask, sparse = FALSE) == TRUE), ]
-        coords_keep <- as.data.frame(st_coordinates(pred_df_temp))
-        row.names(coords_keep) <- NULL
-        pred_df_use <- data.frame(cbind(coords_keep, "z" = as.numeric(pred_df_temp$z)))
+        pred_df_use <- data.frame(st_coordinates(pred_df_temp), "z" = as.numeric(pred_df_temp$layer))
         names(pred_df_use) <- c("x", "y", "z")
 
         time_plot_use <- plot_times[tI]
@@ -3286,7 +3321,7 @@ vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, spatial_var, nice_ca
       if (panel_or_gif == "panel") {
         # Panel plot
         all_plot <- wrap_plots(rasts_out, ncol = panel_cols, nrow = panel_rows, guides = "collect", theme(plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt")))
-        ggsave(filename = paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_", spatial_var, ".png"), all_plot, width = 11, height = 8, units = "in")
+        ggsave(filename = paste0(out_dir, "/", nice_category_names, "_", pred_label, "_", spatial_var, ".png"), all_plot, width = 11, height = 8, units = "in")
         return(all_plot)
       } else {
         # Make a gif
@@ -3296,7 +3331,7 @@ vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, spatial_var, nice_ca
             print(plot_use)
           }
         }
-        invisible(save_gif(plot_loop_func(rasts_out), paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_", spatial_var, ".gif"), delay = 0.75, progress = FALSE))
+        invisible(save_gif(plot_loop_func(rasts_out), paste0(out_dir, "/", nice_category_names, "_", pred_label, "_", spatial_var, ".gif"), delay = 0.75, progress = FALSE))
       }
     }
   } else {
@@ -3363,7 +3398,7 @@ vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, spatial_var, nice_ca
     if (panel_or_gif == "panel") {
       # Panel plot
       all_plot <- wrap_plots(rasts_out, ncol = panel_cols, nrow = panel_rows, guides = "collect", theme(plot.margin = margin(t = 0.05, r = 0.05, b = 0.05, l = 0.05, unit = "pt")))
-      ggsave(filename = paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_", "density.png"), all_plot, width = 11, height = 8, units = "in")
+      ggsave(filename = paste0(out_dir, "/", nice_category_names, "_", pred_label, "_", "density.png"), all_plot, width = 11, height = 8, units = "in")
       return(all_plot)
     } else {
       # Make a gif
@@ -3373,7 +3408,7 @@ vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, spatial_var, nice_ca
           print(plot_use)
         }
       }
-      invisible(save_gif(plot_loop_func(rasts_out), paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_", "density.gif"), delay = 0.75, progress = FALSE))
+      invisible(save_gif(plot_loop_func(rasts_out), paste0(out_dir, "/", nice_category_names, "_", pred_label, "_", "density.gif"), delay = 0.75, progress = FALSE))
     }
   }
 }
@@ -3392,17 +3427,18 @@ vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, spatial_var, nice_ca
 #'
 #' @export
 
-vast_get_point_preds <- function(vast_fit, use_PredTF_only, nice_category_names, out_dir) {
+vast_get_point_preds<- function(vast_fit, use_PredTF_only, nice_category_names, out_dir) {
   if (FALSE) {
-    vast_fit <- vast_fitted
-    use_PredTF_only <- FALSE
-    nice_category_names <- "Atlantic halibut"
+    vast_fit <- mod_comp_res$Fitted_Mod[[1]]
+    use_PredTF_only <- TRUE
+    nice_category_names <- "Atlantic_cod_test"
     out_dir <- here::here("", "results/tables")
   }
 
   # Collecting the sample data
   samp_dat <- vast_fit$data_frame %>%
-    dplyr::select(., Lat_i, Lon_i, b_i, t_i)
+      dplyr::select(., Lat_i, Lon_i, b_i, t_i) %>%
+      drop_units()
   names(samp_dat) <- c("Lat", "Lon", "Biomass", "Year")
   samp_dat$Presence <- ifelse(samp_dat$Biomass > 0, 1, 0)
 
@@ -4024,99 +4060,30 @@ pred_idw_to_ncdf <- function(pred_idw_list, nice_category_names, climate_scenari
   nc_close(ncout)
 }
 
-get_range_edge = function( fit.model, 
-                           strata_names=NULL,
-                            category_names=NULL,
-                           working_dir=paste0(getwd(),"/"), 
-                           quantiles=c(0.05,0.95), 
-                           n_samples=100,
-                            interval_width=1, 
-                           width=NULL, 
-                           height=NULL,
-                           calculate_relative_to_average=FALSE,
-                           ...){
+get_range_edges<- function(vast_fit, category_names = nice_category_names, strata_names = NULL, all_times, n_samples = 100, quantiles = c(0.05, 0.5, 0.95), calculate_relative_to_average = FALSE){
 
 if(FALSE){
-    fit.model = vast_fit
-    strata_names=NULL
-    category_names=NULL
-    working_dir=paste0(getwd(),"/")
-    quantiles=c(0.05,0.5,0.95)
-    n_samples=100
-    interval_width=1
-    width=NULL
-    height=NULL
-    calculate_relative_to_average=FALSE
+   vast_fit = fit
+   all_times = all_times
+   category_names = nice_category_names
+   strata_names = NULL
+   n_samples = 100
+   quantiles = c(0.05, 0.5, 0.95)
+   calculate_relative_to_average = FALSE
 }
   
   # Unpack
-  Sdreport=fit.model$parameter_estimates$SD 
-  Report=fit.model$Report 
-  TmbData=fit.model$data_list 
-  Obj=fit.model$tmb_list$Obj
-  year_labels=fit.model$year_labels
+  Sdreport = vast_fit$parameter_estimates$SD 
+  Report = vast_fit$Report 
+  TmbData = vast_fit$data_list 
+  Obj = vast_fit$tmb_list$Obj
+  year_labels = all_times
 
-#   # extract northings and eastings 
-#   Z_gm = fit.model$spatial_list$loc_g 
-  
-#   # create UTM object with correct attributes
-#   tmpUTM = cbind("PID" = 1, "POS" = 1:nrow(Z_gm), "X" = Z_gm[, "E_km"], "Y" = Z_gm[, "N_km"])
-#   attr(tmpUTM, "projection") = "UTM"
-#   attr(tmpUTM, "zone") = 19
-  
-#   # convert to lat/lon for merging with custom axis
-#   latlon_g = PBSmapping::convUL(tmpUTM)
-#   latlon_g = cbind("Lat" = latlon_g[, "Y"], "Lon" = latlon_g[, "X"])
-#   latlon_g <- as.data.frame(latlon_g) # should be a df with lat/lon coordinates
-  
-#   # function to save the custom axis position that minimize Euclidean distance from each set of VAST coordinates
-#   get_length <- function(lon, lat, distdf) {
-#       tmp <- distdf
-#       tmp$abs.diff.x2 = abs(distdf$x - lon)^2
-#       tmp$abs.diff.y2 = abs(distdf$y - lat)^2
-#       # get Euclidean dist from VAST points to all points along the coastal axis
-#       tmp$abs.diff.xy = sqrt(tmp$abs.diff.x2 + tmp$abs.diff.y2)
-#       tmp <- tmp[tmp$abs.diff.xy == min(tmp$abs.diff.xy), ] # keep only the row with the minimum distance
-#       return(tmp$lengthfromhere) # save the position of that row
-#   }
-  
-#   # apply this to match each VAST knot with a position along the custom axis
-#   line_km=NULL
-#   for (k in 1:nrow(latlon_g)) {
-#       out = get_length(lon = latlon_g$Lon[k], lat = latlon_g$Lat[k], distdf = axisdistdat) / 1000
-#       line_km <- c(line_km, out)
-#   }
-#   # bind the axis positions that match each knot back to Z_gm
-#   Z_gm = cbind( Z_gm, "line_km"=line_km )
-#   Z_gm_axes = colnames(Z_gm)]
-  
-  # # Informative errors
-  # if(is.null(Sdreport)) stop("Sdreport is NULL; please provide Sdreport")
-  # if( !("jointPrecision" %in% names(Sdreport))) stop("jointPrecision not present in Sdreport; please re-run with `getJointPrecision=TRUE`")
-  # if( any(quantiles<0) | any(quantiles>1) ) stop("Please provide `quantiles` between zero and one")
-  # if( all(TmbData$Z_gm==0) ) stop("Please re-run with 'Options['Calculate_Range']=TRUE' to calculate range edges")
-  # 
-  # # Which parameters
-  # if( "ln_Index_tl" %in% rownames(TMB::summary.sdreport(Sdreport)) ){
-  #   # SpatialDeltaGLMM
-  #   stop("Not implemente")
-  # }
-  # if( "ln_Index_ctl" %in% rownames(TMB::summary.sdreport(Sdreport)) ){
-  #   # VAST Version < 2.0.0
-  #   stop("Not implemente")
-  # }
-  # if( "ln_Index_cyl" %in% rownames(TMB::summary.sdreport(Sdreport)) ){
-  #   # VAST Version >= 2.0.0
-  #   TmbData[["n_t"]] = nrow(TmbData[["t_yz"]])
-  # }
-  
   # Default inputs
-#  if( is.null(Year_Set)) Year_Set = 1:TmbData$n_t
-#  if( is.null(Years2Include) ) Years2Include = 1:TmbData$n_t
   if( is.null(strata_names) ) strata_names = 1:TmbData$n_l
   if( is.null(category_names) ) category_names = 1:TmbData$n_c
   if( is.null(colnames(TmbData$Z_gm)) ){
-    m_labels = paste0("axis",1:ncol(TmbData$Z_gm))
+    m_labels = paste0("axis", 1:ncol(TmbData$Z_gm))
   }else{
     m_labels = colnames(TmbData$Z_gm)
   }
@@ -4160,46 +4127,37 @@ if(FALSE){
       }
     }}
   SE_zctm = apply( E_zctmr, MARGIN=1:4, FUN=sd )
-  Edge_zctm = abind::abind( "Estimate"=E_zctm, "Std. Error"=SE_zctm, along=5 )
+  Edge_zctm = abind::abind( "Estimate"=E_zctm, "Std_Error"=SE_zctm, along=5 )
   dimnames(Edge_zctm)[[1]] = paste0("quantile_",quantiles)
   
-  # transform matrix into a dataframe 
+  # transform matrix into a dataframe
+  Edge_df <- Edge_zctm %>%
+      as_tibble(., rownames = "Quantile") %>%
+      pivot_longer(., cols = -Quantile) %>%
+      separate(., name, into = c("Category", "Year", "Axis", "Quantity"), sep = "[.]")
+ 
+  Edge_df$Year <- year_labels[as.numeric(Edge_df$Year)] # DANGER--would prefer to carry through real year values
   
-  Edge_df <- reshape2::melt(Edge_zctm)
-  Edge_df$Var2 <- NULL
-  
-  # replace axis numbers with names 
-#   for(i in 1:length(Z_gm_axes)) {
-#     Edge_df$Var4 <- gsub(paste0(i), paste0(Z_gm_axes[i]), Edge_df$Var4)
-#   }
-
-  colnames(Edge_df) <- c("quantile","year","axis","quantity","value")
-  Edge_df$year <- year_labels[Edge_df$year]  # DANGER--would prefer to carry through real year values
-  
-  # eliminate unwanted years from Edge_df
-#   Edge_df <- Edge_df[Edge_df$year %in% Years2Include, ]
-  
-  # Rename
-  Edge_df$axis <- ifelse(Edge_df$axis == 1, "Longitude", "Latitude")
+  # Rename axes
+  Edge_df$Axis <- ifelse(Edge_df$Axis == "1", "Longitude", "Latitude")
 
   # Slight formatting to get things to be a bit easier to plot
   Edge_df_mu <- Edge_df %>%
-      filter(., quantity == "Estimate") %>%
-      pivot_wider(., names_from = axis, values_from = value) %>%
-      dplyr::select(., -quantity)
-  colnames(Edge_df_mu)[3:4]<- c("Longitude_Mean", "Latitude_Mean")
+      filter(., Quantity == "Estimate") %>%
+      pivot_wider(., names_from = Axis, values_from = value) %>%
+      dplyr::select(., -Quantity)
+  colnames(Edge_df_mu)[4:5]<- c("Longitude_Mean", "Latitude_Mean")
 
   Edge_df_sd <- Edge_df %>%
-      filter(., quantity == "Std. Error") %>%
-      pivot_wider(., names_from = axis, values_from = value) %>%
-      dplyr::select(., -quantity)
-  colnames(Edge_df_sd)[3:4]<- c("Longitude_SD", "Latitude_SD")
+      filter(., Quantity == "Std_Error") %>%
+      pivot_wider(., names_from = Axis, values_from = value) %>%
+      dplyr::select(., -Quantity)
+  colnames(Edge_df_sd)[4:5]<- c("Longitude_SD", "Latitude_SD")
 
   Edge_df_out <- Edge_df_mu %>%
       left_join(., Edge_df_sd)
   
-  # Return list of stuff
-  
+  # Return
   return(Edge_df_out)
 }
 
