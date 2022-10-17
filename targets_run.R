@@ -12,7 +12,7 @@ options(tidyverse.quiet = TRUE)
 tar_option_set(packages = c("Matrix", "TMB", "FishStatsUtils", "VAST", "tidyverse", "lubridate", "sf", "raster", "here", "tools"))
 
 # Clean everything?
-clean_start <- TRUE
+clean_start <- FALSE
 if (clean_start) {
   tar_destroy()
 }

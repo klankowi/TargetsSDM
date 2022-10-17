@@ -2104,6 +2104,155 @@ predict.fit_model_aja <- function(x, what = "D_i", Lat_i, Lon_i, t_i, a_i, c_iz 
   return(Y_i)
 }
 
+# Designing a projection function
+#' @title Summarize prediction intervals from simulation results.
+#'
+#' @description Calculates and returns prediction intervals for a given variable at each projection time step.
+#'
+#' @param sim_obj = A simulation results list returned by \code{project.fit_model}.
+#' @param what = Variable to summarize and plot
+#' @param probs = A numeric vector of probabilities to calculate across simulation values at each projection time step.
+#'
+#' @return A dataframe with location and time information for each sample in `new_projection_data` and the projected \code{what} output variable prob results.
+#'
+#' @export
+summary.sim_results <- function(vast_fit, sim_obj, what, nice_times = NULL, out_t_scale = NULL, probs = c(0.1, 0.5, 0.9), mean_instead = FALSE, nice_category_names = nice_category_names, climate_scenario = climate_scenario, out_dir) {
+  if (FALSE) {
+    tar_load(vast_fit)
+    tar_load(vast_projections)
+    sim_obj <- vast_projections
+    what <- "Index_ctl"
+    nice_times <- nice_times
+    out_t_scale <- "annual"
+    probs <- c(0.1, 0.5, 0.9)
+    mean_instead <- FALSE
+    nice_category_names <- nice_category_names
+    climate_scenario <- climate_scenario
+    out_dir <- paste0(res_root, "prediction_df")
+
+    vast_fit = fit
+    sim_obj = uncert_res[[1]]
+    what = "Index_ctl"
+    nice_times = seq(from = 1, to = 348)
+    out_t_scale = NULL
+    probs = c(0.1, 0.5, 0.9)
+    mean_instead = FALSE
+    nice_category_names = "Atlantic cod"
+    climate_scenario = "SSP5_85_mean"
+    out_dir = date_dir
+  }
+
+  # Some general stuff
+  # Time series steps
+  time_ind <- seq(from = 1, to = length(nice_times))
+  time_labels <- nice_times
+
+  # Index regions
+  index_regions_ind <- seq(from = 1, to = vast_fit$data_list$n_l)
+  index_regions <- vast_fit$settings$strata.limits$STRATA[index_regions_ind]
+
+  # Categories
+  categories_ind <- seq(from = 1, to = vast_fit$data_list$n_c)
+
+  # Grid locations
+  grid_ind <- seq(from = 1, to = vast_fit$data_list$n_g)
+
+  # Loop through sims and get results
+  for (i in seq_along(sim_obj)) {
+
+    # Index values?
+    if (what == "Index_ctl") {
+      temp_array <- array(unlist(sim_obj[[i]][which(names(sim_obj[[i]]) == "Index_ctl")]), dim = c(unlist(vast_fit$data_list[c("n_c")]), "n_t" = length(nice_times), unlist(vast_fit$data_list[c("n_l")])), dimnames = list(categories_ind, time_labels, index_regions))
+
+      temp_df <- data.frame(aperm(temp_array, c(2, 3, 1)))
+      colnames(temp_df) <- gsub(".1", "", colnames(temp_df))
+
+      temp_df$Sim_Scenario <- rep(paste0("Sim_", i), nrow(temp_df))
+
+      temp_df$Time <- nice_times
+
+      if (i == 1) {
+        res_out <- temp_df
+      } else {
+        res_out <- bind_rows(res_out, temp_df)
+      }
+    }
+
+    # Predicted grid density?
+    if (what == "D_gct") {
+      temp_array <- array(unlist(sim_obj[[i]][which(names(sim_obj[[i]]) == "D_gct")], dim = c(unlist(vast_fit$data_list[c("n_g", "n_c")]), "n_t" = length(nice_times)), dimnames = list(grid_ind, categories_ind, time_labels)))
+
+      temp_df <- data.frame(aperm(temp_array, c(1, 3, 2)))
+      colnames(temp_df) <- nice_times
+      temp_df$Lat <- vast_fit$spatial_list$latlon_g[, "Lat"]
+      temp_df$Lon <- vast_fit$spatial_list$latlon_g[, "Lon"]
+
+      temp_df <- temp_df %>%
+        distinct() %>%
+        pivot_longer(., !c(Lat, Lon), names_to = "Time", values_to = "D_gct") %>%
+        arrange(Time, Lat, Lon)
+
+      temp_df$Sim_Scenario <- paste0("Sim_", i)
+
+      if (i == 1) {
+        res_out <- temp_df
+      } else {
+        res_out <- bind_rows(res_out, temp_df)
+      }
+    }
+  }
+
+  # Wide to long for "Index_ctl"
+  if (what == "Index_ctl") {
+    # Annual average?
+    if (!is.null(out_t_scale)) {
+      res_out <- res_out %>%
+        pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index") %>%
+        mutate(., Time = ymd(as.numeric(format(Time, "%Y")), truncated = 2L)) %>%
+        group_by(., Time, Region) %>%
+        summarise(
+          Prob_0.5 = quantile(Index, probs = 0.50),
+          Prob_0.1 = quantile(Index, probs = 0.1),
+          Prob_0.9 = quantile(Index, probs = 0.9)
+        )
+    } else {
+      res_out <- res_out %>%
+        pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index") %>%
+        group_by(., Time, Region) %>%
+        summarise(
+          Prob_0.5 = quantile(Index, probs = 0.50),
+          Prob_0.1 = quantile(Index, probs = 0.1),
+          Prob_0.9 = quantile(Index, probs = 0.9)
+        )
+    }
+  }
+
+  if (what == "D_gct") {
+    # Annual average?
+    if (!is.null(out_t_scale)) {
+      res_out <- res_out %>%
+        mutate(., Time = ymd(as.numeric(format(Time, "%Y")), truncated = 2L)) %>%
+        group_by(., Time, Region) %>%
+        summarise(
+          Prob_0.5 = quantile(Index, probs = 0.50)
+        )
+    } else {
+      res_out <- res_out %>%
+        group_by(., Lat, Lon, Time, Region) %>%
+        summarise(
+          Prob_0.5 = quantile(D_gct, probs = 0.50),
+          Prob_0.1 = quantile(D_gct, probs = 0.1),
+          Prob_0.9 = quantile(D_gct, probs = 0.9)
+        )
+    }
+  }
+
+  # Save and return it
+  saveRDS(res_out, file = paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_", what, ".rds"))
+  return(res_out)
+}
+
+
 match_strata_fn_aja <- function(points, strata_dataframe, index_shapes) {
   if (FALSE) {
     points <- Tmp
@@ -2650,7 +2799,7 @@ plot_vast_index_timeseries <- function(index_res_df, year_stop = NULL, index_sca
   return(plot_out)
 }
 
-plot_vast_projected_index <- function(vast_projections, year_stop = NULL, index_scale, nice_category_names = nice_category_names, climate_scenario = climate_scenario, nice_times = nice_times, region_keep = c("DFO", "NMFS", "GoM", "SNE_and_MAB"), nice_xlab, nice_ylab, plot_error_bars = FALSE, paneling = c("category", "index_region", "none"), color_pal = c("#66c2a5", "#fc8d62", "#8da0cb"), out_dir) {
+plot_vast_projected_index <- function(vast_projections, year_stop = NULL, index_scale, nice_category_names = nice_category_names, climate_scenario = climate_scenario, nice_times = nice_times, region_keep = c("DFO", "NMFS", "GoM", "SNE_and_MAB"), nice_xlab, nice_ylab, paneling = c("category", "index_region", "none"), color_pal = c("#66c2a5", "#fc8d62", "#8da0cb"), out_dir) {
   if (FALSE) {
     tar_load(vast_projection_summ_index)
     vast_projections <- vast_projection_summ_index
@@ -2666,6 +2815,20 @@ plot_vast_projected_index <- function(vast_projections, year_stop = NULL, index_
     paneling <- "none"
     date_breaks <- "5 year"
     out_dir <- paste0(res_root, "plots_maps")
+
+    vast_projections <- res_out
+    region_keep<- NULL
+    year_stop <- NULL
+    index_scale <- "log"
+    nice_category_names <- "Atlantic cod"
+    climate_scenario <- "SSP5_85_Mean"
+    nice_times <- nice_times
+    nice_xlab <- "time"
+    nice_ylab<- "Log Biomass index (metric tons)"
+    color_pal = c("#66c2a5", "#fc8d62", "#8da0cb")
+    paneling <- "none"
+    date_breaks <- "10 year"
+    out_dir = date_dir
   }
 
   if (paneling == "none") {
@@ -2696,34 +2859,20 @@ plot_vast_projected_index <- function(vast_projections, year_stop = NULL, index_
     }
 
     # Date axis
-    date_breaks <- seq.Date(from = as.Date(paste(min(index_res_df$Time), "06-15", sep = "-")), to = as.Date(paste(max(index_res_df$Time), "06-15", sep = "-")), by = "5 years")
-    if (plot_error_bars) {
-      plot_out <- ggplot() +
-        geom_errorbar(data = index_res_df, aes(x = Time, ymin = Prob_0.1, ymax = Prob_0.9, color = Region, group = Region), alpha = 0.65) +
-        # geom_point(data = index_res_df, aes(x = Time, y = Prob_0.5, color = Region)) +
-        geom_line(data = index_res_df, aes(x = Time, y = Prob_0.5, color = Region)) +
-        scale_color_manual(values = colors_use) +
-        scale_x_date(breaks = date_breaks, date_labels = "%Y") +
-        xlab({{ nice_xlab }}) +
-        ylab({{ nice_ylab }}) +
-        ggtitle({{ nice_category_names }}) +
-        theme_bw() +
-        theme(legend.title = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-        facet_wrap(~Region)
-    } else {
-      plot_out <- ggplot() +
-        # geom_errorbar(data = index_res_df, aes(x = Time, ymin = Prob_0.1, ymax = Prob_0.9, color = Region, group = Region), alpha = 0.65) +
-        geom_point(data = index_res_df, aes(x = Time, y = Prob_0.5, color = Region)) +
-        geom_line(data = index_res_df, aes(x = Time, y = Prob_0.5, color = Region)) +
-        scale_color_manual(values = colors_use) +
-        scale_x_date(breaks = date_breaks, date_labels = "%Y") +
-        xlab({{ nice_xlab }}) +
-        ylab({{ nice_ylab }}) +
-        ggtitle({{ nice_category_names }}) +
-        theme_bw() +
-        theme(legend.title = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-        facet_wrap(~Region)
-    }
+    date_breaks <- seq.Date(from = as.Date(paste(min(index_res_df$Time), "06-15", sep = "-")), to = as.Date(paste(max(index_res_df$Time), "06-15", sep = "-")), by = date_breaks)
+    
+    plot_out <- ggplot(data = index_res_df, aes(x = Time, ymin = Prob_0.1, ymax = Prob_0.9, fill = Region)) +
+      geom_ribbon(alpha = 0.75) +
+      geom_line(data = index_res_df, aes(x = Time, y = Prob_0.5, color = Region)) +
+      scale_color_manual(values = colors_use) +
+      scale_fill_manual(values = colors_use) +
+      # scale_x_date(breaks = date_breaks, date_labels = "%Y") +
+      xlab({{ nice_xlab }}) +
+      ylab({{ nice_ylab }}) +
+      ggtitle({{ nice_category_names }}) +
+      theme_bw() +
+      theme(legend.title = element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+      facet_wrap(~Region)
   }
 
   # Save and return the plot
@@ -4456,148 +4605,4 @@ plot_cog <- function(cog_df, df_crs = "+proj=utm +zone=19 +datum=WGS84 +units=km
   # Save and return it
   ggsave(plot_out, file = paste(out_dir, "/COG_", "_", nice_category_names, ".jpg", sep = ""))
   return(plot_out)
-}
-
-if (FALSE) {
-  # JSDM factors
-  vast_fit <- vast_jsdm_fit
-  an <- as.numeric
-  DF <- vast_fit$data_frame
-
-  Year_Set <- vast_fit$year_labels
-  Years2Include <- Year_Set
-  spp <- species_keep
-  category_names <- spp
-  L_list <- Var_list <- vector("list", length = 4)
-  names(L_list) <- names(Var_list) <- c("Omega1", "Epsilon1", "Omega2", "Epsilon2")
-  Data <- vast_fit$data_list
-  ParHat <- vast_fit$ParHat
-  Report <- vast_fit$Report
-  for (i in 1:4) {
-    Par_name <- names(L_list)[i]
-    FieldConfig_ind <- switch(Par_name,
-      "Omega1" = c(1, 1),
-      "Omega2" = c(1, 2),
-      "Epsilon1" = c(2, 1),
-      "Epsilon2" = c(2, 2)
-    )
-    if (i %in% c(1, 3)) Var_name <- paste("Omega", "input", substring(Par_name, 6, 6), "_sf", sep = "")
-    if (i %in% c(2, 4)) Var_name <- paste("Epsilon", "input", substring(Par_name, 8, 8), "_sft", sep = "")
-
-    L_list[[Par_name]] <- calc_cov(L_z = ParHat[[paste0("L_", tolower(Par_name), "_z")]], n_f = Data$FieldConfig[FieldConfig_ind[1], FieldConfig_ind[2]], n_c = Data$n_c, returntype = "loadings_matrix")
-    rownames(L_list[[Par_name]]) <- category_names
-    Var_list[[Par_name]] <- FishStatsUtils::rotate_factors(L_pj = L_list[[Par_name]], Psi = Report[[Var_name]], RotationMethod = "PCA", testcutoff = 1e-04)
-    rownames(Var_list[[Par_name]]$L_pj_rot) <- category_names
-  }
-
-
-
-  Omega1_sf <- apply(Var_list$"Omega1"$Psi_rot, 1:2, FUN = mean)
-  Omega2_sf <- apply(Var_list$"Omega2"$Psi_rot, 1:2, FUN = mean)
-  Epsilon1_sf <- apply(Var_list$"Epsilon1"$Psi_rot, 1:2, FUN = mean)
-  Epsilon2_sf <- apply(Var_list$"Epsilon2"$Psi_rot, 1:2, FUN = mean)
-
-
-  #############
-  ## the Map ##
-  #############
-  DF <- data.frame(X = Centers[, "E_km"], Y = Centers[, "N_km"])
-  xlim <- xlim_use
-  ylim <- ylim_use
-
-  ## The map for all areas
-  max_rows <- 457
-  Omega1_sf <- Omega1_sf[1:max_rows, ]
-  Omega2_sf <- Omega2_sf[1:max_rows, ]
-  Epsilon1_sf <- Epsilon1_sf[1:max_rows, ]
-  Epsilon2_sf <- Epsilon2_sf[1:max_rows, ]
-
-  Omega1_sf <- as.data.frame(Omega1_sf)
-  Omega2_sf <- as.data.frame(Omega2_sf)
-  Epsilon1_sf <- as.data.frame(Epsilon1_sf)
-  Epsilon2_sf <- as.data.frame(Epsilon2_sf)
-
-  Omega1_sf$x2i <- 1:457
-  Omega2_sf$x2i <- 1:457
-  Epsilon1_sf$x2i <- 1:457
-  Epsilon2_sf$x2i <- 1:457
-
-  DF2 <- MapDetails_List[["PlotDF"]]
-
-  DF3_O1 <- merge(DF2, Omega1_sf)
-  DF3_O2 <- merge(DF2, Omega2_sf)
-  DF3_E1 <- merge(DF2, Epsilon1_sf)
-  DF3_E2 <- merge(DF2, Epsilon2_sf)
-
-  DF3_O1 <- DF3_O1[DF3_O1$Include == T, ]
-  DF3_O2 <- DF3_O2[DF3_O2$Include == T, ]
-  DF3_E1 <- DF3_E1[DF3_E1$Include == T, ]
-  DF3_E2 <- DF3_E2[DF3_E2$Include == T, ]
-
-  colnames(DF3_O1)[5:13] <- colnames(DF3_O2)[5:13] <- paste("factor", 1:9, sep = "_")
-  colnames(DF3_E1)[5:13] <- colnames(DF3_E2)[5:13] <- paste("factor", 1:9, sep = "_")
-
-  DF4_O1 <- melt(DF3_O1, id = c("x2i", "Lat", "Lon", "Include"))
-  colnames(DF4_O1)[6] <- "Spatial Encounter Prob"
-  DF4_O2 <- melt(DF3_O2, id = c("x2i", "Lat", "Lon", "Include"))
-  colnames(DF4_O2)[6] <- "Spatial Density"
-  DF4_E1 <- melt(DF3_E1, id = c("x2i", "Lat", "Lon", "Include"))
-  colnames(DF4_E1)[6] <- "Spatio-temporal Encounter Prob"
-  DF4_E2 <- melt(DF3_E2, id = c("x2i", "Lat", "Lon", "Include"))
-  colnames(DF4_E2)[6] <- "Spatio-temporal Density"
-
-
-  cols <- brewer.pal(8, "Set1")
-
-  library(dplyr)
-
-  # p1 <- ggplot() + geom_point(data = filter(DF4_O1, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
-  # 			    geom_point(data = filter(DF4_O1, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) +
-  #    coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
-  #  scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
-  #  facet_grid(variable ~.)
-
-  # p2 <- ggplot() + geom_point(data = filter(DF4_O2, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lon, y =  Lat, colour = value), size = 1) +
-  # 			    geom_point(data = filter(DF4_O2, variable %in% paste("factor", 1:3, sep="_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) +
-  #    coast.poly + coast.outline  + coord_quickmap(xlim, ylim) + theme(legend.position = 'none',plot.margin=unit(c(0,0,0,0),"mm")) + xlab('') + ylab('') +
-  #  scale_colour_gradient2(low = cols[2], mid = 'white', high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
-  #  facet_wrap(~variable, ncol = 1)
-
-
-  DF5 <- merge(DF4_O1, DF4_O2)
-  DF5 <- melt(DF5, id = c("x2i", "Lat", "Lon", "Include", "variable"))
-  colnames(DF5)[c(5, 6)] <- c("factor", "parameter")
-
-  ggplot() +
-    geom_point(data = filter(DF5, factor %in% paste("factor", 1:3, sep = "_")), aes(x = Lon, y = Lat, colour = value), size = 1) +
-    geom_point(data = filter(DF5, factor %in% paste("factor", 1:3, sep = "_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) +
-    coast.poly +
-    coast.outline +
-    coord_quickmap(xlim, ylim) +
-    theme(legend.position = "none", plot.margin = unit(c(0, 0, 0, 0), "mm")) +
-    xlab("") +
-    ylab("") +
-    scale_colour_gradient2(low = cols[2], mid = "white", high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
-    facet_grid(factor ~ parameter)
-
-  ggsave(file = file.path("..", "plots", "SpatialFactorLoadingsOmega1Omega2.png"), width = 8, height = 12)
-
-
-  DF6 <- merge(DF4_E1, DF4_E2)
-  DF6 <- melt(DF6, id = c("x2i", "Lat", "Lon", "Include", "variable"))
-  colnames(DF6)[c(5, 6)] <- c("factor", "parameter")
-
-  ggplot() +
-    geom_point(data = filter(DF6, factor %in% paste("factor", 1:3, sep = "_")), aes(x = Lon, y = Lat, colour = value), size = 1) +
-    geom_point(data = filter(DF6, factor %in% paste("factor", 1:3, sep = "_")), aes(x = Lat, y = Lon), size = 0.5, shape = 3) +
-    coast.poly +
-    coast.outline +
-    coord_quickmap(xlim, ylim) +
-    theme(legend.position = "none", plot.margin = unit(c(0, 0, 0, 0), "mm")) +
-    xlab("") +
-    ylab("") +
-    scale_colour_gradient2(low = cols[2], mid = "white", high = cols[1], midpoint = 0, space = "Lab", na.value = "grey50", guide = "colourbar") +
-    facet_grid(factor ~ parameter)
-
-  ggsave(file = file.path("..", "plots", "SpatialFactorLoadingsEpsilon1Epsilon2.png"), width = 8, height = 12)
 }
