@@ -566,7 +566,7 @@ vast_make_extrap_grid <- function(region_shapefile, index_shapes, cell_size) {
 #'
 #' @export
 
-vast_make_settings <- function(extrap_grid, n_knots, FieldConfig, RhoConfig, OverdispersionConfig, bias.correct, knot_method, inla_method, Options, strata.limits) {
+vast_make_settings <- function(extrap_grid, n_knots, FieldConfig, RhoConfig, OverdispersionConfig, bias.correct, knot_method, inla_method, Options, strata.limits, version = NULL) {
 
   # For debugging
   if (FALSE) {
@@ -584,7 +584,7 @@ vast_make_settings <- function(extrap_grid, n_knots, FieldConfig, RhoConfig, Ove
   }
 
   # Run FishStatsUtils::make_settings
-  settings_out <- make_settings(n_x = n_knots, Region = "User", purpose = "index2", FieldConfig = FieldConfig, RhoConfig = RhoConfig, ObsModel = c(2, 1), OverdispersionConfig = OverdispersionConfig, bias.correct = bias.correct, knot_method = knot_method, treat_nonencounter_as_zero = FALSE, strata.limits = strata.limits)
+  settings_out <- make_settings(n_x = n_knots, Region = "User", purpose = "index2", FieldConfig = FieldConfig, RhoConfig = RhoConfig, ObsModel = c(2, 1), OverdispersionConfig = OverdispersionConfig, bias.correct = bias.correct, knot_method = knot_method, treat_nonencounter_as_zero = FALSE, strata.limits = strata.limits, Version = version)
   settings_out$Method <- inla_method
 
   # Adjust options?
@@ -594,7 +594,7 @@ vast_make_settings <- function(extrap_grid, n_knots, FieldConfig, RhoConfig, Ove
       options_adjust_i <- Options[i]
       options_new[[which(names(options_new) == names(options_adjust_i))]] <- options_adjust_i
     }
-    settings_out <- make_settings(n_x = n_knots, Region = "User", purpose = "index2", FieldConfig = FieldConfig, RhoConfig = RhoConfig, ObsModel = c(2, 1), OverdispersionConfig = OverdispersionConfig, bias.correct = bias.correct, knot_method = knot_method, treat_nonencounter_as_zero = FALSE, strata.limits = strata.limits, Options = options_new)
+    settings_out <- make_settings(n_x = n_knots, Region = "User", purpose = "index2", FieldConfig = FieldConfig, RhoConfig = RhoConfig, ObsModel = c(2, 1), OverdispersionConfig = OverdispersionConfig, bias.correct = bias.correct, knot_method = knot_method, treat_nonencounter_as_zero = FALSE, strata.limits = strata.limits, Options = options_new, Version = version)
     settings_out$Method <- inla_method
   }
 
