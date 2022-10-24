@@ -1749,19 +1749,21 @@ project.fit_model_wrapper <- function(n_sims = n_sims, sim_type = 1, vast_fit = 
   return(sim_res)
 }
 
-project_model_aja<- function (x, n_proj, n_samples, new_covariate_data = NULL, new_catchability_data = NULL, extrapolation_list = NULL, input_grid = NULL, spatial_list = NULL, historical_uncertainty = "both", seed = 123456, working_dir = paste0(getwd(), "/"), ...) {
+project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covariate_data = NULL, new_catchability_data = NULL, extrapolation_list = NULL, input_grid = NULL, spatial_list = NULL, historical_uncertainty = "both", seed = 123456, working_dir = paste0(getwd(), "/"), ...) {
 
     if (FALSE) {
         x = fit
+        what = c("Epsilon1_gct", "Epsilon2_gct", "eta1_gct", "eta2_gct", "P1_gct", "D_gct", "Index_ctl", "effective_area_ctl")
         n_proj = 243 - 12
         n_samples = 500
         new_covariate_data = new_cov_dat
         new_catchability_data = new_catch_dat
-        historical_uncertainty = "random"
+        historical_uncertainty = "none"
         seed = rI
         working_dir = date_dir
         extrapolation_list = fit$extrapolation_list
         input_grid = fit$extrapolation_list$Data_Extrap[, c("Lon", "Lat", "Region", "Area_km2", "STRATA")]
+        spatial_list = proj_spatial
     }
     
     # Unpack
@@ -1873,6 +1875,8 @@ project_model_aja<- function (x, n_proj, n_samples, new_covariate_data = NULL, n
     
     # Object to keep output
     out = vector("list", length = n_samples)
+    proj_track_start <- data.frame("Progress" = "Start")
+    write.table(proj_track_start, file = paste0(working_dir, uncert_res, "_proj_track.csv"), row.names = FALSE, col.names = FALSE, sep = ",", append = FALSE)
 
     # Loop through 1:n_samples
     for(sampleI in seq_len(n_samples)){
@@ -1936,6 +1940,16 @@ project_model_aja<- function (x, n_proj, n_samples, new_covariate_data = NULL, n
         # Amend labels
         x2$Report = out[[sampleI]]
         out[[sampleI]] = amend_output(x2)
+
+        # Keep only what we want
+        if(!is.null(what)){
+            out[[sampleI]] <- out[[sampleI]][which(names(out[[sampleI]]) %in% what)]
+        }
+
+        # Clean up and track progress
+        gc()
+        proj_track_up <- data.frame("Progress" = sampleI)
+        write.table(proj_track_up, file = paste0(working_dir, uncert_res, "_proj_track.csv"), row.names = FALSE, col.names = FALSE, sep = ",", append = TRUE)
     }
 
     if (n_samples == 1) {
@@ -3575,14 +3589,15 @@ vast_fit_plot_spatial <- function(vast_fit, manual_pred_df, pred_grid, spatial_v
     }
 
     # Getting spatial information
-    if(vast_fit$spatial_list$fine_scale == TRUE){
-        spat_data <- vast_fit$extrapolation_list
-        locs <- spat_data$Data_Extrap[which(spat_data$Data_Extrap[, "Include"] > 0), c("Lon", "Lat")] %>%
+    if (vast_fit$spatial_list$fine_scale == TRUE) {
+      spat_data <- vast_fit$extrapolation_list
+      locs <- data.frame(spat_data$Data_Extrap[which(spat_data$Data_Extrap[, "Include"] > 0), c("Lon", "Lat")]) %>%
         distinct()
     } else {
-        spat_data <- vast_fit$spatial_list
-        locs <- spat_data$latlon_s[1:spat_data$n_x,]
+      spat_data <- vast_fit$spatial_list
+      locs <- spat_data$latlon_s[1:spat_data$n_x, ]
     }
+    
     
     CRS_orig <- sp::CRS("+proj=longlat")
     CRS_proj <- sp::CRS(spat_data$projargs)

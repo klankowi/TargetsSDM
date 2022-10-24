@@ -1,5 +1,4 @@
 library(devtools)
-library(gmRi)
 library(Matrix)
 library(VAST)
 library(FishStatsUtils)
@@ -259,11 +258,11 @@ list(
   ),
   tar_target(
     name = all_tows_with_all_covs_rescale,
-    command = rescale_all_covs(all_tows_with_all_covs, depth_cut = depth_cut, type = "AJA", center = TRUE, scale = TRUE, out_dir = here::here("data/combined"))
+    command = rescale_all_covs(all_tows_with_all_covs, depth_cut = depth_cut, type = "AJA", center = TRUE, scale = FALSE, out_dir = here::here("data/combined"))
   ),
   tar_target(
     name = rescale_params,
-    command = get_rescale_params(all_tows_with_all_covs, depth_cut = depth_cut, out_dir = here::here("data/covariates/"))
+    command = get_rescale_params(all_tows_with_all_covs, center = TRUE, scale = FALSE, depth_cut = depth_cut, out_dir = here::here("data/covariates/"))
   ),
 
   # Combine tidy occupancy data
