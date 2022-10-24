@@ -46,7 +46,7 @@ covariate_rescale_func<- function(x, type, center = NULL, scale = NULL){
     x.out<- x/100
     return(x.out)
   } else {
-    x.out<- as.numeric(scale(abs(x), center = center, scale = scale))
+    x.out<- as.numeric(scale(x, center = center, scale = scale))
     return(x.out)
   }
 }
@@ -498,23 +498,21 @@ get_rescale_params<- function(all_tows_with_all_covs, center, scale, depth_cut, 
     tar_load(all_tows_with_all_covs)
     type = "AJA"
     scale = TRUE
-    center = TRUE
+    center = FALSE
   }
   
   # Cut depth
   all_tows_with_all_covs_temp<- all_tows_with_all_covs %>%
     dplyr::filter(., Depth  <= depth_cut)
   
-  cov_names<- c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal")
+  cov_names <- c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal")
   
-  if(center & scale){
-    rescale_params <- all_tows_with_all_covs %>%
+  rescale_params <- all_tows_with_all_covs %>%
       summarize_at(., .vars = {{ cov_names }}, .funs = c("Mean" = mean, "SD" = sd), na.rm = TRUE)
-  } else {
-     rescale_params <- all_tows_with_all_covs %>%
-       summarize_at(., .vars = {{ cov_names }}, .funs = c("Mean" = mean, "SD" = 1), na.rm = TRUE)
+  
+  if(scale & !center){
+   rescale_params[, grepl("_SD", colnames(rescale_params))]<- 1
   }
-
   
   saveRDS(rescale_params, file = paste(out_dir, "rescale_cov_params.rds", sep = "/"))
   return(rescale_params)
