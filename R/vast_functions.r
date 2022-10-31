@@ -410,8 +410,8 @@ make_vast_covariate_data <- function(vast_seasonal_data, out_dir) {
     "Depth" = vast_seasonal_data_temp$Depth,
     "SST_seasonal" = vast_seasonal_data_temp$SST_seasonal,
     "BT_seasonal" = vast_seasonal_data_temp$BT_seasonal,
-    "BS_seasonal" = vast_seasonal_data_temp$BS_seasonal,
-    "SS_seasonal" = vast_seasonal_data_temp$SS_seasonal,
+    # "BS_seasonal" = vast_seasonal_data_temp$BS_seasonal,
+    # "SS_seasonal" = vast_seasonal_data_temp$SS_seasonal,
     "Lat" = vast_seasonal_data_temp$DECDEG_BEGLAT,
     "Lon" = vast_seasonal_data_temp$DECDEG_BEGLON
   )
