@@ -78,9 +78,20 @@ make_vast_predict_df <- function(predict_covariates_stack_agg, extra_covariates_
     # Get the time index
     time_ind <- i
 
-    # Load corresponding raster layers matching the time index
-    pred_covs_stack_temp <- rotate(raster::stack(raster::stack(rast_files_load[1])[[time_ind]], raster::stack(rast_files_load[2])[[time_ind]], raster::stack(rast_files_load[3])[[time_ind]], raster::stack(rast_files_load[4])[[time_ind]]))
-
+    if ((length(covs_rescale) - 1) == 4) {
+      # Load corresponding raster layers matching the time index
+      pred_covs_stack_temp <- rotate(raster::stack(raster::stack(rast_files_load[1])[[time_ind]], raster::stack(rast_files_load[2])[[time_ind]], raster::stack(rast_files_load[3])[[time_ind]], raster::stack(rast_files_load[4])[[time_ind]]))
+    } else if ((length(covs_rescale) - 1) == 3) {
+      # Load corresponding raster layers matching the time index
+      pred_covs_stack_temp <- rotate(raster::stack(raster::stack(rast_files_load[1])[[time_ind]], raster::stack(rast_files_load[2])[[time_ind]], raster::stack(rast_files_load[3])[[time_ind]]))
+    } else if ((length(covs_rescale) - 1) == 2) {
+      # Load corresponding raster layers matching the time index
+      pred_covs_stack_temp <- rotate(raster::stack(raster::stack(rast_files_load[1])[[time_ind]], raster::stack(rast_files_load[2])[[time_ind]]))
+    } else if ((length(covs_rescale) - 1) == 1) {
+      # Load corresponding raster layers matching the time index
+      pred_covs_stack_temp <- rotate(raster::stack(raster::stack(rast_files_load[1])[[time_ind]]))
+    }
+  
     # Mask out values outside area of interest
     pred_covs_stack_temp <- raster::mask(pred_covs_stack_temp, mask = mask)
 
