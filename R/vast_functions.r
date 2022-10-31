@@ -2551,7 +2551,7 @@ fit_model_aja <- function(settings, Method, Lat_i, Lon_i, t_i, b_i, a_i, c_iz = 
 }
 
 vast_read_region_shape <- function(region_shapefile_dir) {
-  region_file <- list.files(region_shapefile_dir, pattern = ".shp", full.names = TRUE)
+  region_file <- list.files(region_shapefile_dir, pattern = ".shp$", full.names = TRUE)
   region_sf <- st_read(region_file)
   return(region_sf)
 }
