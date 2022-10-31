@@ -128,11 +128,11 @@ Opt = TMBhelper::Optimize(obj=vast_fit$tmb_list$Obj, getsd=FALSE)
 
 ## After setting run_model = FALSE
 tar_load(vast_fit)
-ParHat = TMBhelper:::extract_fixed(vast_fit$tmb_list$Obj)
-Gr = vast_fit$tmb_list$Obj$gr( ParHat )
+ParHat = TMBhelper:::extract_fixed(fit$tmb_list$Obj)
+Gr = fit$tmb_list$Obj$gr( ParHat )
 Gr
 
-param_names<- names(vast_fit$tmb_list$Obj$par)
+param_names<- names(fit$tmb_list$Obj$par)
 param_names[which(Gr == 0)]
 param_names[which(Gr == 0)]
 which(Gr == 0)
