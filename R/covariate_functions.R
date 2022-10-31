@@ -492,7 +492,7 @@ rescale_all_covs<- function(all_tows_with_all_covs, depth_cut = depth_cut, covs_
   return(all_tows_with_all_covs_rescale)
 }
 
-get_rescale_params<- function(all_tows_with_all_covs, center, scale, depth_cut, out_dir){
+get_rescale_params<- function(all_tows_with_all_covs, cov_names, center, scale, depth_cut, out_dir){
   
   if(FALSE){
     tar_load(all_tows_with_all_covs)
@@ -504,8 +504,6 @@ get_rescale_params<- function(all_tows_with_all_covs, center, scale, depth_cut, 
   # Cut depth
   all_tows_with_all_covs_temp<- all_tows_with_all_covs %>%
     dplyr::filter(., Depth  <= depth_cut)
-  
-  cov_names <- c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal")
   
   rescale_params <- all_tows_with_all_covs %>%
       summarize_at(., .vars = {{ cov_names }}, .funs = c("Mean" = mean, "SD" = sd), na.rm = TRUE)
