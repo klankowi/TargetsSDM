@@ -2737,7 +2737,7 @@ get_vast_index_timeseries <- function(vast_fit, all_times, nice_category_names, 
   # }
   #
 
-  index_res_out$Date <- rep(factor(all_times, levels = all_times), each = length(unique(index_res_out$Index_Region)))
+  index_res_out$Date <- rep(factor(as.character(all_times), levels = as.character(all_times)), each = length(unique(index_res_out$Index_Region)))
 
   # Date info
   index_res_out <- index_res_out %>%
