@@ -2609,6 +2609,12 @@ get_vast_index_timeseries <- function(vast_fit, all_times, nice_category_names, 
     nice_category_names <- "Atlantic_halibut_habcovs"
     index_scale <- c("raw")
     out_dir <- here::here("", "results/tables")
+
+    vast_fit = fit
+    all_times = hist_times
+    nice_category_names = "Atlantic cod"
+    index_scale = "log"
+    out_dir = date_dir
   }
 
   TmbData <- vast_fit$data_list
@@ -2637,24 +2643,26 @@ get_vast_index_timeseries <- function(vast_fit, all_times, nice_category_names, 
   Index_ctl <- log_Index_ctl <- array(NA, dim = c(unlist(TmbData[c("n_c", "n_t", "n_l")]), 2), dimnames = list(categories_ind, time_labels, index_regions, c("Estimate", "Std. Error")))
 
   if (index_scale == "raw") {
-    # if(vast_fit$settings$bias.correct == TRUE && "unbiased" %in% names(Sdreport)){
-    #   Index_ctl = log_Index_ctl = array(NA, dim = c(unlist(TmbData[c('n_c','n_t','n_l')]), 2), dimnames = list(categories_ind, time_labels, index_regions, c('Est. (bias.correct)', 'Std. Error')))
-    #   Index_ctl[] = SD[which(rownames(SD) == "Index_ctl"),c('Est. (bias.correct)','Std. Error')]
-    # } else {
-    #   Index_ctl = log_Index_ctl = array(NA, dim = c(unlist(TmbData[c('n_c','n_t','n_l')]), 2), dimnames = list(categories_ind, time_labels, index_regions, c('Estimate', 'Std. Error')))
-    #   Index_ctl[]<- SD[which(rownames(SD) == "Index_ctl"), c('Estimate','Std. Error')]
-    # }
+    if ("unbiased" %in% names(Sdreport)) {
+      Index_ctl[] <- SD[which(rownames(SD) == "Index_ctl"), c("Est. (bias.correct)", "Std. (bias.correct)")]
+    } else {
+      Index_ctl[] <- SD[which(rownames(SD) == "Index_ctl"), c("Estimate", "Std. Error")]
+    }
+
+    index_res_array <- Index_ctl
+
     Index_ctl <- log_Index_ctl <- array(NA, dim = c(unlist(TmbData[c("n_c", "n_t", "n_l")]), 2), dimnames = list(categories_ind, time_labels, index_regions, c("Estimate", "Std. Error")))
     Index_ctl[] <- SD[which(rownames(SD) == "Index_ctl"), c("Estimate", "Std. Error")]
     index_res_array <- Index_ctl
   } else {
-    if (vast_fit$settings$bias.correct == TRUE && "unbiased" %in% names(Sdreport)) {
-      log_Index_ctl[] <- SD[which(rownames(SD) == "ln_Index_ctl"), c("Est. (bias.correct)", "Std. Error")]
+    if ("unbiased" %in% names(Sdreport)) {
+      log_Index_ctl[] <- SD[which(rownames(SD) == "ln_Index_ctl"), c("Est. (bias.correct)", "Std. (bias.correct)")]
     } else {
       log_Index_ctl[] <- SD[which(rownames(SD) == "ln_Index_ctl"), c("Estimate", "Std. Error")]
     }
     index_res_array <- log_Index_ctl
   }
+  
 
   # Data manipulation to get out out the array and to something more "plottable"
   for (i in seq_along(categories_ind)) {
