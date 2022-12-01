@@ -2625,7 +2625,7 @@ get_vast_index_timeseries <- function(vast_fit, all_times, nice_category_names, 
   time_labels <- sort(unique(vast_fit$data_frame$t_i)[time_ind])
 
   # Missing year issue?
-  if(length(seq(from = min(time_labels), to = max(time_labels))) != length(time_labels){
+  if(length(seq(from = min(time_labels), to = max(time_labels))) != length(time_labels)){
     time_labels<- seq(from = min(unique(vast_fit$data_frame$t_i)[time_ind], na.rm = TRUE), to = max(unique(vast_fit$data_frame$t_i)[time_ind], na.rm = TRUE))
   }
 
