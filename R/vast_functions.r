@@ -2650,10 +2650,6 @@ get_vast_index_timeseries <- function(vast_fit, all_times, nice_category_names, 
     }
 
     index_res_array <- Index_ctl
-
-    Index_ctl <- log_Index_ctl <- array(NA, dim = c(unlist(TmbData[c("n_c", "n_t", "n_l")]), 2), dimnames = list(categories_ind, time_labels, index_regions, c("Estimate", "Std. Error")))
-    Index_ctl[] <- SD[which(rownames(SD) == "Index_ctl"), c("Estimate", "Std. Error")]
-    index_res_array <- Index_ctl
   } else {
     if ("unbiased" %in% names(Sdreport)) {
       log_Index_ctl[] <- log(SD[which(rownames(SD) == "Index_ctl"), c("Est. (bias.correct)", "Std. (bias.correct)")])
