@@ -2624,6 +2624,11 @@ get_vast_index_timeseries <- function(vast_fit, all_times, nice_category_names, 
   time_ind <- 1:TmbData$n_t
   time_labels <- sort(unique(vast_fit$data_frame$t_i)[time_ind])
 
+  # Missing year issue?
+  if(length(seq(from = min(time_labels), to = max(time_labels))) != length(time_labels){
+    time_labels<- seq(from = min(unique(vast_fit$data_frame$t_i)[time_ind], na.rm = TRUE), to = max(unique(vast_fit$data_frame$t_i)[time_ind], na.rm = TRUE))
+  }
+
   # Index regions
   index_regions_ind <- 1:TmbData$n_l
   index_regions <- vast_fit$settings$strata.limits$STRATA[index_regions_ind]
