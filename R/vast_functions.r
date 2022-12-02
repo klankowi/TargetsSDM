@@ -824,12 +824,12 @@ vast_build_sdm <- function(settings, extrap_grid, sample_data, covariate_data, X
 
   # Covariate data frame names
   if (!is.null(covariate_data)) {
-    cov_dat_names1 <- unlist(str_extract_all(X1_formula, boundary("word"))[[2]])
+    cov_dat_names1 <- unlist(str_extract_all(format(X1_formula), boundary("word"))[[2]])
 
     # Remove some stuff associated with the splines...
-    spline_words <- c("bs", "degree", "df", "knots", "TRUE", "intercept", unique(as.numeric(unlist(str_extract_all(X1_formula, pattern = "[0-9]+", simplify = TRUE)))), "FALSE")
+    spline_words <- c("bs", "degree", "df", "knots", "TRUE", "intercept", unique(as.numeric(unlist(str_extract_all(format(X1_formula), pattern = "[0-9]+", simplify = TRUE)))), "FALSE")
     cov_dat_names1 <- cov_dat_names1[-which(cov_dat_names1 %in% spline_words)]
-    cov_dat_names2 <- unlist(str_extract_all(X2_formula, boundary("word"))[[2]])
+    cov_dat_names2 <- unlist(str_extract_all(format(X2_formula), boundary("word"))[[2]])
     cov_dat_names2 <- cov_dat_names2[-which(cov_dat_names2 %in% spline_words)]
     cov_dat_names_all <- unique(c(cov_dat_names1, cov_dat_names2))
     if (!(all(cov_dat_names_all %in% names(covariate_data)))) {
@@ -4640,4 +4640,41 @@ plot_cog <- function(cog_df, df_crs = "+proj=utm +zone=19 +datum=WGS84 +units=km
   # Save and return it
   ggsave(plot_out, file = paste(out_dir, "/COG_", "_", nice_category_names, ".jpg", sep = ""))
   return(plot_out)
+}
+
+
+check_estimability_aja<- function (obj, h, version) {
+  if(FALSE){
+    obj = vast_fit$tmbl_list$obj
+    h =  substitute()
+    version = vast_fit$settings$version
+  }
+    ParHat = TMBhelper:::extract_fixed(obj)
+    Gr = obj$gr(ParHat)
+    if (any(Gr > 0.01)) 
+        stop("Some gradients are high, please improve optimization and only then use `Check_Identifiable`")
+    List = NULL
+    if (missing(h)) {
+        List[["Hess"]] = optimHess(par = ParHat, fn = obj$fn, 
+            gr = obj$gr)
+    }
+    else {
+        List[["Hess"]] = h
+    }
+    List[["Eigen"]] = eigen(List[["Hess"]])
+    List[["WhichBad"]] = which(List[["Eigen"]]$values < sqrt(.Machine$double.eps))
+    if (length(List[["WhichBad"]]) == 0) {
+        message("All parameters are estimable")
+    }
+    else {
+        RowMax = apply(List[["Eigen"]]$vectors[, List[["WhichBad"]], 
+            drop = FALSE], MARGIN = 1, FUN = function(vec) {
+            max(abs(vec))
+        })
+        List[["BadParams"]] = data.frame(Param = names(obj$par), 
+            MLE = ParHat, Param_check = ifelse(RowMax > 0.1, 
+                "Bad", "OK"))
+        print(List[["BadParams"]])
+    }
+    return(invisible(List))
 }
