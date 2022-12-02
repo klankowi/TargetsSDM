@@ -40,6 +40,10 @@ nmfs_get_tows<-function(nmfs_raw, out_dir){
   nmfs_tows_out<- temp_tows
   colnames(nmfs_tows_out)<- toupper(colnames(nmfs_tows_out))
 
+  nmfs_tows <- nmfs_tows %>%
+    mutate(., "SURVEY" = rep("NMFS", nrow(.)))
+  nmfs_tows$SEASON <- toupper(nmfs_tows$SEASON)
+  
   # Return and save it
   saveRDS(nmfs_tows_out, file = paste(out_dir, "nmfs_tows.rds", sep = "/"))
   return(nmfs_tows_out)
@@ -134,6 +138,8 @@ nmfs_make_tidy_occu<-function(nmfs_raw, nmfs_tows, species_table, spp_or_group, 
     mutate(., "DFO_SPEC" = NMFS_SVSPP)
   }
 
+  nmfs_tidy_occu<- nmfs_tidy_occu %>%
+    mutate(., "SURVEY" = rep("NMFS", nrow(.)))
 
   # Return and save it
   saveRDS(nmfs_tidy_occu, file = paste(out_dir, "nmfs_tidy_occu.rds", sep = "/"))

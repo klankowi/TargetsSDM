@@ -47,12 +47,12 @@ bind_nmfs_dfo_tows<- function(nmfs_tows, dfo_tows, out_dir){
   }
   
   # Load in both datasets, add survey column
-  nmfs_tows<- nmfs_tows %>%
-    mutate(., "SURVEY" = rep("NMFS", nrow(.))) 
-  nmfs_tows$SEASON<- toupper(nmfs_tows$SEASON)
-  dfo_tows<- dfo_tows %>%
-    mutate(., "SURVEY" = rep("DFO", nrow(.))) %>%
-    dplyr::select(., -DIST)
+  # nmfs_tows<- nmfs_tows %>%
+  #   mutate(., "SURVEY" = rep("NMFS", nrow(.))) 
+  # nmfs_tows$SEASON<- toupper(nmfs_tows$SEASON)
+  # dfo_tows<- dfo_tows %>%
+  #   mutate(., "SURVEY" = rep("DFO", nrow(.))) %>%
+  #   dplyr::select(., -DIST)
   
   # Bind them together
   all_tows<- bind_rows(nmfs_tows, dfo_tows) %>%
@@ -89,10 +89,10 @@ bind_nmfs_dfo_tidy_occu<- function(nmfs_tidy_occu, dfo_tidy_occu, out_dir){
   }
   
   # Load in both datasets, add survey column
-  nmfs_tidy_occu<- nmfs_tidy_occu %>%
-    mutate(., "SURVEY" = rep("NMFS", nrow(.)))
-  dfo_tidy_occu<- dfo_tidy_occu %>%
-    mutate(., "SURVEY" = rep("DFO", nrow(.)))
+  # nmfs_tidy_occu<- nmfs_tidy_occu %>%
+  #   mutate(., "SURVEY" = rep("NMFS", nrow(.)))
+  # dfo_tidy_occu<- dfo_tidy_occu %>%
+  #   mutate(., "SURVEY" = rep("DFO", nrow(.)))
   
   # Bind them together
   all_tidy_occu<- bind_rows(nmfs_tidy_occu, dfo_tidy_occu)

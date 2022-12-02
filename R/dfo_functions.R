@@ -81,9 +81,13 @@ dfo_get_tows<-function(dfo_GSINF, dfo_GSMISSIONS, out_dir){
   # Rename and select columns to make US-equivalent
   # in rename function, first name is new name, second name is old name
   # select function = selects variables to keep and puts them in a US-equivalent order
-  dfo_tows_out<- temp_tows %>% 
-    dplyr::rename("DECDEG_BEGLAT" = "LATITUDE", "DECDEG_BEGLON" = "LONGITUDE") %>% 
+  dfo_tows_out <- temp_tows %>%
+    dplyr::rename("DECDEG_BEGLAT" = "LATITUDE", "DECDEG_BEGLON" = "LONGITUDE") %>%
     dplyr::select(ID, DATE, EST_YEAR, SEASON, SVVESSEL, DECDEG_BEGLAT, DECDEG_BEGLON, DIST)
+  
+  dfo_tows_out<- dfo_tows_out %>%
+    mutate(., "SURVEY" = rep("DFO", nrow(.))) %>%
+    dplyr::select(., -DIST)
   
   # Return and save it
   saveRDS(dfo_tows_out, file = paste(out_dir, "dfo_tows.rds", sep = "/"))
@@ -182,6 +186,9 @@ dfo_make_tidy_occu<-function(dfo_GSCAT, dfo_tows, species_table, spp_or_group, o
     rename("DFO_SPEC" = Group) %>%
     mutate(., "NMFS_SVSPP" = DFO_SPEC)
   }
+
+  dfo_tidy_occu<- dfo_tidy_occu %>%
+    mutate(., "SURVEY" = rep("DFO", nrow(.)))
 
   # Return and save it
   saveRDS(dfo_tidy_occu, file = paste(out_dir, "dfo_tidy_occu.rds", sep = "/"))
