@@ -40,9 +40,9 @@ nmfs_get_tows<-function(nmfs_raw, out_dir){
   nmfs_tows_out<- temp_tows
   colnames(nmfs_tows_out)<- toupper(colnames(nmfs_tows_out))
 
-  nmfs_tows <- nmfs_tows %>%
+  nmfs_tows_out <- nmfs_tows_out %>%
     mutate(., "SURVEY" = rep("NMFS", nrow(.)))
-  nmfs_tows$SEASON <- toupper(nmfs_tows$SEASON)
+  nmfs_tows_out$SEASON <- toupper(nmfs_tows_out$SEASON)
   
   # Return and save it
   saveRDS(nmfs_tows_out, file = paste(out_dir, "nmfs_tows.rds", sep = "/"))
