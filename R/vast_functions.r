@@ -2752,7 +2752,7 @@ get_vast_index_timeseries <- function(vast_fit, all_times, nice_category_names, 
   index_res_out <- index_res_out %>%
     mutate(., Year = as.numeric(gsub("([0-9]+).*$", "\\1", Date)))
 
-  if (any(str_detect(as.character(index_res_out$Date), LETTERS))) {
+  if (any(str_detect(as.character(index_res_out$Date), "[:upper:]"))) {
     index_res_out$Date <- as.Date(paste(index_res_out$Year, ifelse(grepl("SPRING", index_res_out$Date), "-04-15",
       ifelse(grepl("SUMMER", index_res_out$Date), "-07-15", "-10-15")
     ), sep = ""))
