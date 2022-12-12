@@ -2196,8 +2196,9 @@ summary.sim_results <- function(vast_fit, sim_obj, what, resp_scale, nice_times 
 
       temp_df$Time <- nice_times
 
-      # Dealing with 0s
-      temp_df<- ifelse(temp_df == 0, NA, temp_df)
+       # Dealing with 0s
+      temp_df[, 1] <- ifelse(temp_df[, 1] == 0, NA, temp_df[, 1])
+      temp_df<- na.omit(temp_df)
 
       if (i == 1) {
         res_out <- temp_df
