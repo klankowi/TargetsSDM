@@ -2141,7 +2141,7 @@ predict.fit_model_aja <- function(x, what = "D_i", Lat_i, Lon_i, t_i, a_i, c_iz 
 #' @return A dataframe with location and time information for each sample in `new_projection_data` and the projected \code{what} output variable prob results.
 #'
 #' @export
-summary.sim_results <- function(vast_fit, sim_obj, what, nice_times = NULL, out_t_scale = NULL, probs = c(0.1, 0.5, 0.9), mean_instead = FALSE, nice_category_names = nice_category_names, climate_scenario = climate_scenario, out_dir) {
+summary.sim_results <- function(vast_fit, sim_obj, what, resp_scale, nice_times = NULL, out_t_scale = NULL, probs = c(0.1, 0.5, 0.9), mean_instead = FALSE, nice_category_names = nice_category_names, climate_scenario = climate_scenario, out_dir) {
   if (FALSE) {
     tar_load(vast_fit)
     tar_load(vast_projections)
@@ -2196,6 +2196,9 @@ summary.sim_results <- function(vast_fit, sim_obj, what, nice_times = NULL, out_
 
       temp_df$Time <- nice_times
 
+      # Dealing with 0s
+      temp_df<- ifelse(temp_df == 0, NA, temp_df)
+
       if (i == 1) {
         res_out <- temp_df
       } else {
@@ -2233,24 +2236,51 @@ summary.sim_results <- function(vast_fit, sim_obj, what, nice_times = NULL, out_
     if (!is.null(out_t_scale)) {
       res_out <- res_out %>%
         pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index") %>%
-        mutate(., Time = ymd(as.numeric(format(Time, "%Y")), truncated = 2L)) %>%
-        group_by(., Time, Region) %>%
+        mutate(., Time = ymd(as.numeric(format(Time, "%Y")), truncated = 2L))
+
+      if (resp_scale == "log") {
+        res_out <- res_out %>%
+          mutate(., Index = log(Index)) %>%
+          group_by(., Time, Region)
         summarise(
           Prob_0.5 = quantile(Index, probs = 0.50),
           Prob_0.1 = quantile(Index, probs = 0.1),
           Prob_0.9 = quantile(Index, probs = 0.9)
         )
+      } else {
+        res_out <- res_out %>%
+          group_by(., Time, Region) %>%
+          summarise(
+            Prob_0.5 = quantile(Index, probs = 0.50),
+            Prob_0.1 = quantile(Index, probs = 0.1),
+            Prob_0.9 = quantile(Index, probs = 0.9)
+          )
+      }
     } else {
       res_out <- res_out %>%
-        pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index") %>%
-        group_by(., Time, Region) %>%
-        summarise(
-          Prob_0.5 = quantile(Index, probs = 0.50),
-          Prob_0.1 = quantile(Index, probs = 0.1),
-          Prob_0.9 = quantile(Index, probs = 0.9)
-        )
+        pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index")
+
+      if (resp_scale == "log") {
+        res_out <- res_out %>%
+          mutate(., Index = log(Index)) %>%
+          group_by(., Time, Region) %>%
+          summarise(
+            Prob_0.5 = quantile(Index, probs = 0.50),
+            Prob_0.1 = quantile(Index, probs = 0.1),
+            Prob_0.9 = quantile(Index, probs = 0.9)
+          )
+      } else {
+        res_out <- res_out %>%
+          group_by(., Time, Region) %>%
+          summarise(
+            Prob_0.5 = quantile(Index, probs = 0.50),
+            Prob_0.1 = quantile(Index, probs = 0.1),
+            Prob_0.9 = quantile(Index, probs = 0.9)
+          )
+      }
     }
   }
+  
 
   if (what == "D_gct") {
     # Annual average?
