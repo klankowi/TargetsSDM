@@ -2681,7 +2681,7 @@ get_vast_index_timeseries <- function(vast_fit, all_times, nice_category_names, 
 
   if (index_scale == "raw") {
     if ("unbiased" %in% names(Sdreport)) {
-      Index_ctl[] <- SD[which(rownames(SD) == "Index_ctl"), c("Est. (bias.correct)", "Std. Error")]
+      Index_ctl[] <- SD[which(rownames(SD) == "Index_ctl"), c("Estimate", "Std. Error")]
     } else {
       Index_ctl[] <- SD[which(rownames(SD) == "Index_ctl"), c("Estimate", "Std. Error")]
     }
@@ -2689,7 +2689,7 @@ get_vast_index_timeseries <- function(vast_fit, all_times, nice_category_names, 
     index_res_array <- Index_ctl
   } else {
     if ("unbiased" %in% names(Sdreport)) {
-      log_Index_ctl[] <- log(SD[which(rownames(SD) == "Index_ctl"), c("Est. (bias.correct)", "Std. Error")])
+      log_Index_ctl[] <- log(SD[which(rownames(SD) == "Index_ctl"), c("Estimate", "Std. Error")])
     } else {
       log_Index_ctl[] <- SD[which(rownames(SD) == "ln_Index_ctl"), c("Estimate", "Std. Error")]
     }
