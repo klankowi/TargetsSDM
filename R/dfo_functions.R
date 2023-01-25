@@ -90,8 +90,7 @@ dfo_get_tows<-function(dfo_GSINF, dfo_GSMISSIONS, out_dir){
   #   dplyr::select(., -DIST)
     
   dfo_tows_out <- dfo_tows_out %>%
-      mutate(., "SURVEY" = rep("DFO", nrow(.))) %>%
-      dplyr::select(., -DIST)
+      mutate(., "SURVEY" = rep("DFO", nrow(.)))
     
   
   # Return and save it
