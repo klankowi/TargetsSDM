@@ -51,9 +51,9 @@ dfo_get_tows<-function(dfo_GSINF, dfo_GSMISSIONS, out_dir){
   
   # For debugging
   if(FALSE){
-    dfo_GSINF = dfo_GSINF_load(here::here("scratch/aja/TargetsSDM/data/dfo/raw"))
-    dfo_GSMISSIONS = dfo_GSMISSIONS_load(here::here("scratch/aja/TargetsSDM/data/dfo/raw"))
-    out_dir = here::here("scratch/aja/TargetsSDM/data/dfo/clean")
+    dfo_GSINF = dfo_GSINF_load(here::here("data/dfo/raw"))
+    dfo_GSMISSIONS = dfo_GSMISSIONS_load(here::here("data/dfo/raw"))
+    out_dir = here::here("data/dfo/clean")
   }
   
   # Join GSING with GSMISSIONS, create a unique ID and get DATE info
@@ -85,9 +85,14 @@ dfo_get_tows<-function(dfo_GSINF, dfo_GSMISSIONS, out_dir){
     dplyr::rename("DECDEG_BEGLAT" = "LATITUDE", "DECDEG_BEGLON" = "LONGITUDE") %>%
     dplyr::select(ID, DATE, EST_YEAR, SEASON, SVVESSEL, DECDEG_BEGLAT, DECDEG_BEGLON, DIST)
   
-  dfo_tows_out<- dfo_tows_out %>%
-    mutate(., "SURVEY" = rep("DFO", nrow(.))) %>%
-    dplyr::select(., -DIST)
+  # dfo_tows_out <- dfo_tows_out %>%
+  #   mutate(., "SURVEY" = rep("DFO", nrow(.))) %>%
+  #   dplyr::select(., -DIST)
+    
+  dfo_tows_out <- dfo_tows_out %>%
+      mutate(., "SURVEY" = rep("DFO", nrow(.))) %>%
+      dplyr::select(., -DIST)
+    
   
   # Return and save it
   saveRDS(dfo_tows_out, file = paste(out_dir, "dfo_tows.rds", sep = "/"))
