@@ -540,7 +540,7 @@ predict_covariates_stack_agg<- function(predict_covariates_dir, ensemble_stat, r
   }
   
   # Quick check, ensemble stat needs to be one of mean, 5th or 95th
-  if(!ensemble_stat %in% c("mean", "5th", "95th")){
+  if(!ensemble_stat %in% c("mean", "5thpercentile", "95thpercentile")){
     stop("Check `ensemble stat`. Must be one of `mean`, `5thpercentile` or `95thpercentile`.")
   }
   

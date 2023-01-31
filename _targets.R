@@ -297,7 +297,7 @@ list(
   tar_target(
     name = predict_covariates_stack_agg_out,
     command = predict_covariates_stack_agg(predict_covariates_raw_dir, ensemble_stat = "mean", summarize = "seasonal", resample_template = here::here("data/supporting", "Rast0.25grid.grd"), out_dir = here::here("data/predict"))
-  ),
+  )
 
   # # Processed covariate directory
   # tar_target(
@@ -306,35 +306,35 @@ list(
   #   format = "file",
   # ),
 
-  # Process prediction covariates into a dataframe that can be eventually joined up to vast_seasonal_data, masked to focal region of interest
-  tar_target(
-    name = region_shapefile_dir,
-    command = region_shapefile_mk_dir(),
-    format = "file"
-  ),
+  # # Process prediction covariates into a dataframe that can be eventually joined up to vast_seasonal_data, masked to focal region of interest
+  # tar_target(
+  #   name = region_shapefile_dir,
+  #   command = region_shapefile_mk_dir(),
+  #   format = "file"
+  # ),
 
-  # Read in region shapefile
-  tar_target(
-    name = region_shapefile,
-    command = vast_read_region_shape(region_shapefile_dir)
-  ),
+  # # Read in region shapefile
+  # tar_target(
+  #   name = region_shapefile,
+  #   command = vast_read_region_shape(region_shapefile_dir)
+  # ),
 
-  # Read in index shapefiles
-  tar_target(
-    name = index_shapefiles_dir,
-    command = index_shapefiles_mk_dir(),
-    format = "file"
-  ),
-  tar_target(
-    name = index_shapefiles,
-    command = vast_read_index_shapes(index_shapefiles_dir)
-  ),
+  # # Read in index shapefiles
+  # tar_target(
+  #   name = index_shapefiles_dir,
+  #   command = index_shapefiles_mk_dir(),
+  #   format = "file"
+  # ),
+  # tar_target(
+  #   name = index_shapefiles,
+  #   command = vast_read_index_shapes(index_shapefiles_dir)
+  # ),
 
-  # Make prediction grid
-  tar_target(
-    name = vast_predict_df,
-    command = make_vast_predict_df(predict_covariates_stack_agg = predict_covariates_stack_agg_out, extra_covariates_stack = static_covariates_stack, covs_rescale = c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal"), rescale_params = rescale_params, depth_cut = depth_cut, mask = region_shapefile, summarize = "seasonal", ensemble_stat = "mean", fit_year_min = fit_year_min, fit_year_max = fit_year_max, fit_seasons = fit_seasons, test_year_max = test_year_max, out_dir = here::here("data/predict")),
-  )
+  # # Make prediction grid
+  # tar_target(
+  #   name = vast_predict_df,
+  #   command = make_vast_predict_df(predict_covariates_stack_agg = predict_covariates_stack_agg_out, extra_covariates_stack = static_covariates_stack, covs_rescale = c("Depth", "BS_seasonal", "BT_seasonal", "SS_seasonal", "SST_seasonal"), rescale_params = rescale_params, depth_cut = depth_cut, mask = region_shapefile, summarize = "seasonal", ensemble_stat = "mean", fit_year_min = fit_year_min, fit_year_max = fit_year_max, fit_seasons = fit_seasons, test_year_max = test_year_max, out_dir = here::here("data/predict")),
+  # )
 
   # # Make extrapolation grid
   # tar_target(
