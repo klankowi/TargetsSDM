@@ -296,7 +296,7 @@ make_vast_seasonal_data <- function(tidy_mod_data, fit_seasons, nmfs_species_cod
 
   # Ordering...
   cov_names <- names(data_temp)[-which(names(data_temp) %in% c("ID", "DATE", "EST_YEAR", "SEASON", "SURVEY", "SVVESSEL", "DECDEG_BEGLAT", "DECDEG_BEGLON", "NMFS_SVSPP", "DFO_SPEC", "PRESENCE", "BIOMASS", "ABUNDANCE", "PredTF", "VAST_YEAR_COV", "VAST_SEASON", "VAST_YEAR_SEASON"))]
-  cov_names <- cov_names[-which(cov_names == "Season_Match")]
+  # cov_names <- cov_names[-which(cov_names == "Season_Match")]
   data_temp <- data_temp %>%
     dplyr::select("ID", "DATE", "EST_YEAR", "SEASON", "SURVEY", "SVVESSEL", "DECDEG_BEGLAT", "DECDEG_BEGLON", "NMFS_SVSPP", "DFO_SPEC", "PRESENCE", "BIOMASS", "ABUNDANCE", "PredTF", "VAST_YEAR_COV", "VAST_SEASON", "VAST_YEAR_SEASON", {{ cov_names }})
 
