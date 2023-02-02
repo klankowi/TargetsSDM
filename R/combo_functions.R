@@ -113,7 +113,7 @@ bind_nmfs_dfo_tidy_occu<- function(nmfs_tidy_occu, dfo_tidy_occu, out_dir){
 #' @return A tidy model datafame with all the information (tows, habitat covariates, species occurrences) needed to fit a species distribution model. This file is also saved in out_dir. 
 #' 
 #' @export
-make_tidy_mod_data<- function(all_tows, all_tidy_occu, out_dir){
+make_tidy_mod_data<- function(all_tows, all_tidy_occu, cov_names, out_dir){
   
   # For debugging
   if(FALSE){
@@ -130,7 +130,6 @@ make_tidy_mod_data<- function(all_tows, all_tidy_occu, out_dir){
     left_join(., all_tows, by = c("ID", "SURVEY"))
   
   # Keep only what we need..
-  cov_names<- names(all_tows)[-which(names(all_tows) %in% c("ID", "DATE", "EST_YEAR", "SEASON", "SURVEY", "SVVESSEL", "DECDEG_BEGLAT", "DECDEG_BEGLON", "NMFS_SVSPP", "DFO_SPEC", "PRESENCE", "BIOMASS", "ABUNDANCE"))]
   tidy_mod_data_out<- tidy_mod_data %>%
     dplyr::select(., ID, DATE, EST_YEAR, SEASON, SURVEY, SVVESSEL, DECDEG_BEGLAT, DECDEG_BEGLON, NMFS_SVSPP, DFO_SPEC, PRESENCE, BIOMASS, ABUNDANCE, {{cov_names}}) 
   
