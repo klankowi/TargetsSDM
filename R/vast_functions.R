@@ -3077,41 +3077,61 @@ Effect.fit_model_aja <- function(focal.predictors, mod, which_formula = "X1", pa
 get_vast_covariate_effects <- function(vast_fit, params_plot, params_plot_levels, effects_pad_values, nice_category_names, out_dir, ...) {
   if (FALSE) {
     tar_load(vast_fit)
-    params_plot <- c("Depth", "SST_seasonal", "BT_seasonal", "SS_seasonal", "BS_seasonal")
+    params_plot <- c(
+      "Depth", "SST_seasonal", "BT_seasonal",
+      "SS_seasonal", "BS_seasonal"
+    )
     params_plot_levels <- 100
     effects_pad_values <- c(1)
     nice_category_names <- nice_category_names
     out_dir <- paste0(res_root, "tables")
+
+    vast_fit = mod_comp_res$Fitted_Mod[[1]]
+    params_plot = c("index")
+    params_plot_levels = 100
+    effects_pad_values = c(1)
+    nice_category_names = "Capelin"
   }
-
-  # Load covariate_data_full and catchability_data_full into global memory
-  assign("covariate_data_full", vast_fit$effects$covariate_data_full, envir = .GlobalEnv)
-  assign("catchability_data_full", vast_fit$effects$catchability_data_full, envir = .GlobalEnv)
-
-  # Going to loop through each of the values and create a dataframe with all of the information...
+  assign("covariate_data_full", vast_fit$effects$covariate_data_full, 
+        envir = .GlobalEnv)
+  assign("catchability_data_full", vast_fit$effects$catchability_data_full, 
+        envir = .GlobalEnv)
   x1_rescale <- function(x) plogis(x)
   x2_rescale <- function(x) exp(x)
-
+  
   for (i in seq_along(params_plot)) {
-    pred_dat_temp_X1 <- data.frame(Effect.fit_model_aja(focal.predictors = params_plot[i], mod = vast_fit, which_formula = "X1", xlevels = params_plot_levels, pad_values = effects_pad_values)) %>%
-      mutate(., "Lin_pred" = "X1")
-    pred_dat_temp_X2 <- data.frame(Effect.fit_model_aja(focal.predictors = params_plot[i], mod = vast_fit, which_formula = "X2", xlevels = params_plot_levels, pad_values = effects_pad_values)) %>%
-      mutate(., "Lin_pred" = "X2")
-
-    # Combine into one...
-    pred_dat_out_temp <- bind_rows(pred_dat_temp_X1, pred_dat_temp_X2)
-
+    if (params_plot[i] %in% labels(terms(vast_fit$X1_formula))) {
+      pred_dat_temp_X1 <- data.frame(Effect.fit_model(focal.predictors = params_plot[i], mod = vast_fit, which_formula = "X1", xlevels = params_plot_levels, pad_values = effects_pad_values)) %>%
+        mutate(., Lin_pred = "X1")
+    }
+    
+    if(params_plot[i] %in% labels(terms(vast_fit$X2_formula))){
+      pred_dat_temp_X2 <- data.frame(Effect.fit_model(focal.predictors = params_plot[i], mod = vast_fit, which_formula = "X2", xlevels = params_plot_levels, pad_values = effects_pad_values)) %>% 
+      mutate(., Lin_pred = "X2")
+    }
+    
+    if(exists("pred_dat_temp_X1") & !exists("pred_dat_temp_X2")){
+      pred_dat_out_temp <- pred_dat_temp_X1
+      rm(pred_dat_temp_X1)
+    } else if(!exists("pred_dat_temp_X1") & exists("pred_dat_temp_X2")){
+      pred_dat_out_temp <- pred_dat_temp_X2
+      rm(pred_dat_temp_X2)
+    } else if(exists("pred_dat_temp_X1") & exists("pred_dat_temp_X2")) {
+      pred_dat_out_temp <- bind_rows(pred_dat_temp_X1, pred_dat_temp_X2)
+      rm(pred_dat_temp_X1)
+      rm(pred_dat_temp_X2)
+    }
+    
     if (i == 1) {
       pred_dat_out <- pred_dat_out_temp
     } else {
       pred_dat_out <- bind_rows(pred_dat_out, pred_dat_out_temp)
     }
   }
-
-  # Save and return it
   saveRDS(pred_dat_out, file = paste(out_dir, "/", nice_category_names, "_covariate_effects.rds", sep = ""))
   return(pred_dat_out)
 }
+
 
 plot_vast_covariate_effects <- function(vast_covariate_effects, vast_fit, nice_category_names, out_dir, ...) {
   if (FALSE) {
