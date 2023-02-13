@@ -80,7 +80,8 @@ res_root <- box_path(box_group = "Mills Lab", "Projects/sdm_workflow/targets_out
 res_root <- "/Users/aallyn/Library/CloudStorage/Box-Box/Mills Lab/Projects/sdm_workflow/targets_output/"
 
 # Climate scenario
-climate_scenario <- "SSP5_85_mean"
+clim_ensemble_stat<- "95thpercentile"
+climate_scenario <- "SSP5_85_95th"
 
 # Dynamic files
 nmfs_raw_mk_dir <- function() {
@@ -262,7 +263,7 @@ list(
   ),
   tar_target(
     name = rescale_params,
-    command = get_rescale_params(all_tows_with_all_covs, center = TRUE, scale = TRUE, depth_cut = depth_cut, out_dir = here::here("data/covariates/"))
+    command = get_rescale_params(all_tows_with_all_covs, cov_names = c("Depth", "SST_seasonal", "BT_seasonal"), center = TRUE, scale = TRUE, depth_cut = depth_cut, out_dir = here::here("data/covariates/"))
   ),
 
   # Combine tidy occupancy data
@@ -296,7 +297,7 @@ list(
   # Read in raw covariates and summarize them
   tar_target(
     name = predict_covariates_stack_agg_out,
-    command = predict_covariates_stack_agg(predict_covariates_raw_dir, ensemble_stat = "mean", summarize = "seasonal", resample_template = here::here("data/supporting", "Rast0.25grid.grd"), out_dir = here::here("data/predict"))
+    command = predict_covariates_stack_agg(predict_covariates_raw_dir, ensemble_stat = clim_ensemble_stat, summarize = "seasonal", resample_template = here::here("data/supporting", "Rast0.25grid.grd"), out_dir = here::here("data/predict"))
   )
 
   # # Processed covariate directory

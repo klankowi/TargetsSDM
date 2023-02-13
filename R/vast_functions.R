@@ -2170,74 +2170,63 @@ summary.sim_results <- function(vast_fit, sim_obj, what, resp_scale, nice_times 
     climate_scenario = "SSP5_85_mean"
     out_dir = date_dir
   }
-
-  # Some general stuff
-  # Time series steps
+  
   time_ind <- seq(from = 1, to = length(nice_times))
   time_labels <- nice_times
-
-  # Index regions
   index_regions_ind <- seq(from = 1, to = vast_fit$data_list$n_l)
   index_regions <- vast_fit$settings$strata.limits$STRATA[index_regions_ind]
-
-  # Categories
   categories_ind <- seq(from = 1, to = vast_fit$data_list$n_c)
-
-  # Grid locations
   grid_ind <- seq(from = 1, to = vast_fit$data_list$n_g)
-
-  # Loop through sims and get results
   for (i in seq_along(sim_obj)) {
-
-    # Index values?
     if (what == "Index_ctl") {
-      temp_array <- array(unlist(sim_obj[[i]][which(names(sim_obj[[i]]) == "Index_ctl")]), dim = c(unlist(vast_fit$data_list[c("n_c")]), "n_t" = length(nice_times), unlist(vast_fit$data_list[c("n_l")])), dimnames = list(categories_ind, time_labels, index_regions))
-
+      temp_array <- array(unlist(sim_obj[[i]][which(names(sim_obj[[i]]) ==
+        "Index_ctl")]),
+      dim = c(unlist(vast_fit$data_list[c("n_c")]),
+        n_t = length(nice_times), unlist(vast_fit$data_list[c("n_l")])
+      ),
+      dimnames = list(
+        categories_ind, time_labels,
+        index_regions
+      )
+      )
       temp_df <- data.frame(aperm(temp_array, c(2, 3, 1)))
       colnames(temp_df) <- gsub(".1", "", colnames(temp_df))
-
       temp_df$Sim_Scenario <- rep(paste0("Sim_", i), nrow(temp_df))
-
       temp_df$Time <- nice_times
-
-       # Dealing with 0s
-      temp_df[, 1] <- ifelse(temp_df[, 1] == 0, NA, temp_df[, 1])
-      temp_df<- na.omit(temp_df)
-
+      temp_df[, 1] <- ifelse(temp_df[, 1] == 0, NA, temp_df[,1])
+      temp_df <- na.omit(temp_df)
       if (i == 1) {
         res_out <- temp_df
       } else {
         res_out <- bind_rows(res_out, temp_df)
       }
     }
-
-    # Predicted grid density?
+    
     if (what == "D_gct") {
-      temp_array <- array(unlist(sim_obj[[i]][which(names(sim_obj[[i]]) == "D_gct")], dim = c(unlist(vast_fit$data_list[c("n_g", "n_c")]), "n_t" = length(nice_times)), dimnames = list(grid_ind, categories_ind, time_labels)))
-
+      temp_array <- array(unlist(sim_obj[[i]][which(names(sim_obj[[i]]) ==
+        "D_gct")]), dim = c(unlist(vast_fit$data_list[c("n_g")]), (vast_fit$data_list[c("n_c")]), n_t = length(nice_times)), dimnames = list(
+        grid_ind,
+        categories_ind, time_labels
+      ))
+    
       temp_df <- data.frame(aperm(temp_array, c(1, 3, 2)))
-      colnames(temp_df) <- nice_times
+      olnames(temp_df) <- nice_times
       temp_df$Lat <- vast_fit$spatial_list$latlon_g[, "Lat"]
       temp_df$Lon <- vast_fit$spatial_list$latlon_g[, "Lon"]
-
       temp_df <- temp_df %>%
         distinct() %>%
         pivot_longer(., !c(Lat, Lon), names_to = "Time", values_to = "D_gct") %>%
         arrange(Time, Lat, Lon)
-
       temp_df$Sim_Scenario <- paste0("Sim_", i)
-
-      if (i == 1) {
-        res_out <- temp_df
-      } else {
-        res_out <- bind_rows(res_out, temp_df)
-      }
+            if (i == 1) {
+                res_out <- temp_df
+            } else {
+                res_out <- bind_rows(res_out, temp_df)
+            }
     }
   }
-
-  # Wide to long for "Index_ctl"
+  
   if (what == "Index_ctl") {
-    # Annual average?
     if (!is.null(out_t_scale)) {
       res_out <- res_out %>%
         pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index") %>%
@@ -2246,72 +2235,45 @@ summary.sim_results <- function(vast_fit, sim_obj, what, resp_scale, nice_times 
       if (resp_scale == "log") {
         res_out <- res_out %>%
           mutate(., Index = log(Index)) %>%
-          group_by(., Time, Region)
-        summarise(
-          Prob_0.5 = quantile(Index, probs = 0.50),
-          Prob_0.1 = quantile(Index, probs = 0.1),
-          Prob_0.9 = quantile(Index, probs = 0.9)
-        )
+          group_by(., Time, Region) %>%
+          summarise(Prob_0.5 = quantile(Index, probs = 0.5), Prob_0.1 = quantile(Index, probs = 0.1), Prob_0.9 = quantile(Index, probs = 0.9))
       } else {
         res_out <- res_out %>%
           group_by(., Time, Region) %>%
-          summarise(
-            Prob_0.5 = quantile(Index, probs = 0.50),
-            Prob_0.1 = quantile(Index, probs = 0.1),
-            Prob_0.9 = quantile(Index, probs = 0.9)
-          )
+          summarise(Prob_0.5 = quantile(Index, probs = 0.5), Prob_0.1 = quantile(Index, probs = 0.1), Prob_0.9 = quantile(Index, probs = 0.9))
       }
     } else {
-      res_out <- res_out %>%
-        pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index")
-
+      res_out <- res_out %>% pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index")
       if (resp_scale == "log") {
         res_out <- res_out %>%
           mutate(., Index = log(Index)) %>%
           group_by(., Time, Region) %>%
-          summarise(
-            Prob_0.5 = quantile(Index, probs = 0.50),
-            Prob_0.1 = quantile(Index, probs = 0.1),
-            Prob_0.9 = quantile(Index, probs = 0.9)
-          )
+          summarise(Prob_0.5 = quantile(Index, probs = 0.5), Prob_0.1 = quantile(Index, probs = 0.1), Prob_0.9 = quantile(Index, probs = 0.9))
       } else {
         res_out <- res_out %>%
           group_by(., Time, Region) %>%
-          summarise(
-            Prob_0.5 = quantile(Index, probs = 0.50),
-            Prob_0.1 = quantile(Index, probs = 0.1),
-            Prob_0.9 = quantile(Index, probs = 0.9)
-          )
+          summarise(Prob_0.5 = quantile(Index, probs = 0.5), Prob_0.1 = quantile(Index, probs = 0.1), Prob_0.9 = quantile(Index, probs = 0.9))
+      }
+    }
+  }
+  if (what == "D_gct") {
+    if (!is.null(out_t_scale)) {
+      res_out <- res_out %>% pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index") %>%
+      mutate(., Time = ymd(as.numeric(format(Time, "%Y")), truncated = 2L))
+    } else {
+      if (resp_scale == "log") {
+        res_out <- res_out %>% mutate(., Density = log(D_gct)) %>% 
+        group_by(., Time, Lat, Lon) %>% summarise(Prob_0.5 = quantile(Density, probs = 0.5), Prob_0.1 = quantile(Density, probs = 0.1), Prob_0.9 = quantile(Density, probs = 0.9))
+      } else {
+        res_out <- res_out %>% group_by(., Time, Lat, Lon) %>% 
+        summarise(Prob_0.5 = quantile(D_gct, probs = 0.5), Prob_0.1 = quantile(D_gct, probs = 0.1), Prob_0.9 = quantile(D_gct, probs = 0.9))
       }
     }
   }
   
-
-  if (what == "D_gct") {
-    # Annual average?
-    if (!is.null(out_t_scale)) {
-      res_out <- res_out %>%
-        mutate(., Time = ymd(as.numeric(format(Time, "%Y")), truncated = 2L)) %>%
-        group_by(., Time, Region) %>%
-        summarise(
-          Prob_0.5 = quantile(Index, probs = 0.50)
-        )
-    } else {
-      res_out <- res_out %>%
-        group_by(., Lat, Lon, Time, Region) %>%
-        summarise(
-          Prob_0.5 = quantile(D_gct, probs = 0.50),
-          Prob_0.1 = quantile(D_gct, probs = 0.1),
-          Prob_0.9 = quantile(D_gct, probs = 0.9)
-        )
-    }
-  }
-
-  # Save and return it
   saveRDS(res_out, file = paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_", what, ".rds"))
   return(res_out)
 }
-
 
 match_strata_fn_aja <- function(points, strata_dataframe, index_shapes) {
   if (FALSE) {
@@ -2500,30 +2462,49 @@ fit_model_aja <- function(settings, Method, Lat_i, Lon_i, t_i, b_i, a_i, c_iz = 
   }
   extra_args <- list(...)
   extra_args <- c(extra_args, extra_args$extrapolation_args, extra_args$spatial_args, extra_args$optimize_args, extra_args$model_args)
+  start_time = Sys.time()
   data_frame <- data.frame(Lat_i = Lat_i, Lon_i = Lon_i, a_i = a_i, v_i = v_i, b_i = b_i, t_i = t_i, c_iz = c_iz)
   year_labels <- seq(min(t_i), max(t_i))
   years_to_plot <- which(year_labels %in% t_i)
   message("\n### Writing output from `fit_model` in directory: ", working_dir)
   dir.create(working_dir, showWarnings = FALSE, recursive = TRUE)
   capture.output(settings, file = file.path(working_dir, "settings.txt"))
-  message("\n### Making extrapolation-grid")
-  extrapolation_args_default <- list(Region = settings$Region, strata.limits = settings$strata.limits, zone = settings$zone, max_cells = settings$max_cells, DirPath = working_dir)
-  extrapolation_args_input <- combine_lists(input = extra_args, default = extrapolation_args_default, args_to_use = formalArgs(make_extrapolation_info_aja))
-  extrapolation_list <- do.call(what = make_extrapolation_info_aja, args = extrapolation_args_input)
-  message("\n### Making spatial information")
-  spatial_args_default <- list(grid_size_km = settings$grid_size_km, n_x = settings$n_x, Method = Method, Lon_i = Lon_i, Lat_i = Lat_i, Extrapolation_List = extrapolation_list, DirPath = working_dir, Save_Results = TRUE, fine_scale = settings$fine_scale, knot_method = settings$knot_method)
-  spatial_args_input <- combine_lists(input = extra_args, default = spatial_args_default, args_to_use = c(formalArgs(make_spatial_info), formalArgs(INLA::inla.mesh.create)))
-  spatial_list <- do.call(what = make_spatial_info, args = spatial_args_input)
-  message("\n### Making data object")
-  if (missing(covariate_data)) {
-    covariate_data <- NULL
+  if (is.null(extra_args$extrapolation_list)) {
+    message("\n### Making extrapolation-grid")
+    extrapolation_args_default <- list(Region = settings$Region, strata.limits = settings$strata.limits, zone = settings$zone, max_cells = settings$max_cells, DirPath = working_dir)
+    extrapolation_args_input <- combine_lists(input = extra_args, default = extrapolation_args_default, args_to_use = formalArgs(make_extrapolation_info_aja))
+    extrapolation_list <- do.call(what = make_extrapolation_info_aja, args = extrapolation_args_input)
+  } else {
+    extrapolation_args_input = NULL
+    extrapolation_list = extra_args$extrapolation_list
   }
-  if (missing(catchability_data)) {
-    catchability_data <- NULL
+
+  if (is.null(extra_args$spatial_list)) {
+    message("\n### Making spatial information")
+    spatial_args_default <- list(grid_size_km = settings$grid_size_km, n_x = settings$n_x, Method = Method, Lon_i = Lon_i, Lat_i = Lat_i, Extrapolation_List = extrapolation_list, DirPath = working_dir, Save_Results = TRUE, fine_scale = settings$fine_scale, knot_method = settings$knot_method)
+    spatial_args_input <- combine_lists(input = extra_args, default = spatial_args_default, args_to_use = c(formalArgs(make_spatial_info), formalArgs(INLA::inla.mesh.create)))
+    spatial_list <- do.call(what = make_spatial_info, args = spatial_args_input)
+  } else {
+    spatial_args_input = NULL
+    spatial_list = extra_args$spatial_list
   }
-  data_args_default <- list(Version = settings$Version, FieldConfig = settings$FieldConfig, OverdispersionConfig = settings$OverdispersionConfig, RhoConfig = settings$RhoConfig, VamConfig = settings$VamConfig, ObsModel = settings$ObsModel, c_iz = c_iz, b_i = b_i, a_i = a_i, v_i = v_i, s_i = spatial_list$knot_i - 1, t_i = t_i, spatial_list = spatial_list, Options = settings$Options, Aniso = settings$use_anisotropy, X1config_cp = X1config_cp, X2config_cp = X2config_cp, covariate_data = covariate_data, X1_formula = X1_formula, X2_formula = X2_formula, Q1config_k = Q1config_k, Q2config_k = Q2config_k, catchability_data = catchability_data, Q1_formula = Q1_formula, Q2_formula = Q2_formula)
-  data_args_input <- combine_lists(input = extra_args, default = data_args_default)
-  data_list <- do.call(what = make_data, args = data_args_input)
+
+  if(is.null(extra_args$data_list)){
+    message("\n### Making data object")
+    if (missing(covariate_data)) {
+      covariate_data <- NULL
+    }
+    if (missing(catchability_data)) {
+      catchability_data <- NULL
+    }
+    data_args_default <- list(Version = settings$Version, FieldConfig = settings$FieldConfig, OverdispersionConfig = settings$OverdispersionConfig, RhoConfig = settings$RhoConfig, VamConfig = settings$VamConfig, ObsModel = settings$ObsModel, c_iz = c_iz, b_i = b_i, a_i = a_i, v_i = v_i, s_i = spatial_list$knot_i - 1, t_i = t_i, spatial_list = spatial_list, Options = settings$Options, Aniso = settings$use_anisotropy, X1config_cp = X1config_cp, X2config_cp = X2config_cp, covariate_data = covariate_data, X1_formula = X1_formula, X2_formula = X2_formula, Q1config_k = Q1config_k, Q2config_k = Q2config_k, catchability_data = catchability_data, Q1_formula = Q1_formula, Q2_formula = Q2_formula)
+    data_args_input <- combine_lists(input = extra_args, default = data_args_default)
+    data_list <- do.call(what = make_data, args = data_args_input)
+  } else {
+    data_args_input = NULL
+    data_list = extra_args$data_list
+  }
+  
   message("\n### Making TMB object")
   model_args_default <- list(TmbData = data_list, RunDir = working_dir, Version = settings$Version, RhoConfig = settings$RhoConfig, loc_x = spatial_list$loc_x, Method = spatial_list$Method, build_model = build_model)
   model_args_input <- combine_lists(input = extra_args, default = model_args_default, args_to_use = formalArgs(make_model))
@@ -2563,16 +2544,38 @@ fit_model_aja <- function(settings, Method, Lat_i, Lon_i, t_i, b_i, a_i, c_iz = 
       stop("Please change model structure to avoid problems with parameter estimates and then re-try; see details in `?check_fit`\n", call. = FALSE)
     }
   }
+  if ((use_new_epsilon == TRUE) & (settings$bias.correct == TRUE) & (framework == "TMBad") & ("Index_ctl" %in% settings$vars_to_correct)) {
+    settings$vars_to_correct = setdiff(settings$vars_to_correct, c("Index_ctl", "Index_cyl"))
+    if (length(settings$vars_to_correct) == 0) {
+      settings$bias.correct = FALSE
+    }
+    settings$vars_to_correct = c(settings$vars_to_correct, "eps_Index_ctl")
+  }
+  
   optimize_args_default2 <- list(obj = tmb_list$Obj, lower = tmb_list$Lower, upper = tmb_list$Upper, savedir = working_dir, bias.correct = settings$bias.correct, newtonsteps = newtonsteps, bias.correct.control = list(sd = FALSE, split = NULL, nsplit = 1, vars_to_correct = settings$vars_to_correct), control = list(eval.max = 10000, iter.max = 10000, trace = 1), loopnum = 1, getJointPrecision = TRUE)
   optimize_args_input2 <- combine_lists(input = extra_args, default = optimize_args_default2, args_to_use = formalArgs(TMBhelper::fit_tmb))
   optimize_args_input2 <- combine_lists(input = list(startpar = parameter_estimates$par), default = optimize_args_input2)
   parameter_estimates <- do.call(what = TMBhelper::fit_tmb, args = optimize_args_input2)
-  if ("par" %in% names(parameter_estimates)) {
-    Report <- tmb_list$Obj$report()
-    ParHat <- tmb_list$Obj$env$parList(parameter_estimates$par)
-  } else {
-    Report <- ParHat <- "Model is not converged"
+
+  if ((use_new_epsilon == TRUE) & (framework == "TMBad") & ("eps_Index_ctl" %in% settings$vars_to_correct) & !is.null(parameter_estimates2$SD)) {
+    message("\n### Applying faster epsilon bias-correction estimator")
+    fit = list(parameter_estimates = parameter_estimates2, tmb_list = tmb_list, input_args = list(model_args_input = model_args_input))
+    parameter_estimates2$SD = apply_epsilon(fit)
   }
+
+  if ("par" %in% names(parameter_estimates2)) {
+    if (!is.null(tmb_list$Obj$env$intern) && tmb_list$Obj$env$intern == TRUE) {
+      Report = as.list(tmb_list$Obj$env$reportenv)
+    } else {
+      Report = tmb_list$Obj$report()
+    }
+    ParHat = tmb_list$Obj$env$parList(parameter_estimates2$par)
+    Report = amend_output(Report = Report, TmbData = data_list, Map = tmb_list$Map, Sdreport = parameter_estimates2$SD, year_labels = year_labels, category_names = category_names, extrapolation_list = extrapolation_list)
+  } else {
+    Report = ParHat = "Model is not converged"
+  }
+  
+
   input_args <- list(extra_args = extra_args, extrapolation_args_input = extrapolation_args_input, model_args_input = model_args_input, spatial_args_input = spatial_args_input, optimize_args_input1 = optimize_args_input1, optimize_args_input2 = optimize_args_input2, data_args_input = data_args_input)
   Return <- list(data_frame = data_frame, extrapolation_list = extrapolation_list, spatial_list = spatial_list, data_list = data_list, tmb_list = tmb_list, parameter_estimates = parameter_estimates, Report = Report, ParHat = ParHat, year_labels = year_labels, years_to_plot = years_to_plot, settings = settings, input_args = input_args, X1config_cp = X1config_cp, X2config_cp = X2config_cp, covariate_data = covariate_data, X1_formula = X1_formula, X2_formula = X2_formula, Q1config_k = Q1config_k, Q2config_k = Q1config_k, catchability_data = catchability_data, Q1_formula = Q1_formula, Q2_formula = Q2_formula)
   Return$effects <- list()
