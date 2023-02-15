@@ -2506,7 +2506,7 @@ fit_model_aja <- function(settings, Method, Lat_i, Lon_i, t_i, b_i, a_i, c_iz = 
   }
   
   message("\n### Making TMB object")
-  model_args_default <- list(TmbData = data_list, RunDir = working_dir, Version = settings$Version, RhoConfig = settings$RhoConfig, loc_x = spatial_list$loc_x, Method = spatial_list$Method, build_model = build_model)
+  model_args_default <- list(TmbData = data_list, RunDir = working_dir, Version = settings$Version, RhoConfig = settings$RhoConfig, loc_x = spatial_list$loc_x, Method = spatial_list$Method, build_model = build_model, framework = framework)
   model_args_input <- combine_lists(input = extra_args, default = model_args_default, args_to_use = formalArgs(make_model))
   tmb_list <- do.call(what = make_model, args = model_args_input)
   if (run_model == FALSE | build_model == FALSE) {
@@ -2532,13 +2532,13 @@ fit_model_aja <- function(settings, Method, Lat_i, Lon_i, t_i, b_i, a_i, c_iz = 
     }
   }
   message("\n### Estimating parameters")
-  optimize_args_default1 <- list(lower = tmb_list$Lower, upper = tmb_list$Upper, loopnum = 2)
+  optimize_args_default1 <- list(lower = tmb_list$Lower, upper = tmb_list$Upper, loopnum = 1)
   optimize_args_default1 <- combine_lists(default = optimize_args_default1, input = extra_args, args_to_use = formalArgs(TMBhelper::fit_tmb))
-  optimize_args_input1 <- list(obj = tmb_list$Obj, savedir = NULL, newtonsteps = 0, bias.correct = FALSE, control = list(eval.max = 10000, iter.max = 10000, trace = 1), quiet = TRUE, getsd = FALSE)
+  optimize_args_input1 <- list(obj = tmb_list$Obj, savedir = NULL, newtonsteps = 0, bias.correct = FALSE, control = list(eval.max = 50000, iter.max = 50000, trace = 1), quiet = TRUE, getsd = FALSE)
   optimize_args_input1 <- combine_lists(default = optimize_args_default1, input = optimize_args_input1, args_to_use = formalArgs(TMBhelper::fit_tmb))
-  parameter_estimates <- do.call(what = TMBhelper::fit_tmb, args = optimize_args_input1)
+  parameter_estimates1 <- do.call(what = TMBhelper::fit_tmb, args = optimize_args_input1)
   if (exists("check_fit") & test_fit == TRUE) {
-    problem_found <- VAST::check_fit(parameter_estimates)
+    problem_found <- VAST::check_fit(parameter_estimates1)
     if (problem_found == TRUE) {
       message("\n")
       stop("Please change model structure to avoid problems with parameter estimates and then re-try; see details in `?check_fit`\n", call. = FALSE)
@@ -2552,10 +2552,10 @@ fit_model_aja <- function(settings, Method, Lat_i, Lon_i, t_i, b_i, a_i, c_iz = 
     settings$vars_to_correct = c(settings$vars_to_correct, "eps_Index_ctl")
   }
   
-  optimize_args_default2 <- list(obj = tmb_list$Obj, lower = tmb_list$Lower, upper = tmb_list$Upper, savedir = working_dir, bias.correct = settings$bias.correct, newtonsteps = newtonsteps, bias.correct.control = list(sd = FALSE, split = NULL, nsplit = 1, vars_to_correct = settings$vars_to_correct), control = list(eval.max = 10000, iter.max = 10000, trace = 1), loopnum = 1, getJointPrecision = TRUE)
+  optimize_args_default2 <- list(obj = tmb_list$Obj, lower = tmb_list$Lower, upper = tmb_list$Upper, savedir = working_dir, bias.correct = settings$bias.correct, newtonsteps = newtonsteps, bias.correct.control = list(sd = FALSE, split = NULL, nsplit = 1, vars_to_correct = settings$vars_to_correct), control = list(eval.max = 10000, iter.max = 10000, trace = 1), loopnum = 1, getJointPrecision = TRUE, start_time_elapsed = parameter_estimates1$time_for_run)
   optimize_args_input2 <- combine_lists(input = extra_args, default = optimize_args_default2, args_to_use = formalArgs(TMBhelper::fit_tmb))
-  optimize_args_input2 <- combine_lists(input = list(startpar = parameter_estimates$par), default = optimize_args_input2)
-  parameter_estimates <- do.call(what = TMBhelper::fit_tmb, args = optimize_args_input2)
+  optimize_args_input2 <- combine_lists(input = list(startpar = parameter_estimates1$par), default = optimize_args_input2)
+  parameter_estimates2 <- do.call(what = TMBhelper::fit_tmb, args = optimize_args_input2)
 
   if ((use_new_epsilon == TRUE) & (framework == "TMBad") & ("eps_Index_ctl" %in% settings$vars_to_correct) & !is.null(parameter_estimates2$SD)) {
     message("\n### Applying faster epsilon bias-correction estimator")
@@ -2577,7 +2577,8 @@ fit_model_aja <- function(settings, Method, Lat_i, Lon_i, t_i, b_i, a_i, c_iz = 
   
 
   input_args <- list(extra_args = extra_args, extrapolation_args_input = extrapolation_args_input, model_args_input = model_args_input, spatial_args_input = spatial_args_input, optimize_args_input1 = optimize_args_input1, optimize_args_input2 = optimize_args_input2, data_args_input = data_args_input)
-  Return <- list(data_frame = data_frame, extrapolation_list = extrapolation_list, spatial_list = spatial_list, data_list = data_list, tmb_list = tmb_list, parameter_estimates = parameter_estimates, Report = Report, ParHat = ParHat, year_labels = year_labels, years_to_plot = years_to_plot, settings = settings, input_args = input_args, X1config_cp = X1config_cp, X2config_cp = X2config_cp, covariate_data = covariate_data, X1_formula = X1_formula, X2_formula = X2_formula, Q1config_k = Q1config_k, Q2config_k = Q1config_k, catchability_data = catchability_data, Q1_formula = Q1_formula, Q2_formula = Q2_formula)
+  Return <- list(data_frame = data_frame, extrapolation_list = extrapolation_list, spatial_list = spatial_list, data_list = data_list, tmb_list = tmb_list, parameter_estimates = parameter_estimates2, Report = Report, ParHat = ParHat, year_labels = year_labels, years_to_plot = years_to_plot, settings = settings, input_args = input_args, X1config_cp = X1config_cp, X2config_cp = X2config_cp, covariate_data = covariate_data, X1_formula = X1_formula, X2_formula = X2_formula, Q1config_k = Q1config_k, Q2config_k = Q1config_k, catchability_data = catchability_data, Q1_formula = Q1_formula, Q2_formula = Q2_formula, total_time = Sys.time() - start_time)
+
   Return$effects <- list()
   if (!is.null(catchability_data)) {
     catchability_data_full <- data.frame(catchability_data, linear_predictor = 0)
@@ -2595,6 +2596,11 @@ fit_model_aja <- function(settings, Method, Lat_i, Lon_i, t_i, b_i, a_i, c_iz = 
     call_X2 <- lm(X2_formula_full, data = covariate_data_full)$call
     Return$effects <- c(Return$effects, list(call_X1 = call_X1, call_X2 = call_X2, covariate_data_full = covariate_data_full))
   }
+
+  # Add stuff for marginaleffects package
+  Return$last.par.best<- tmb_list$Obj$env$last.par.best
+
+  # Class and return
   class(Return) <- "fit_model"
   return(Return)
 }
