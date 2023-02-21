@@ -1719,50 +1719,50 @@ make_vast_proj_objects <- function(vast_fit = vast_fit, time_covs, pred_covs_out
   return(proj_obs_out)
 }
 
-project.fit_model_wrapper <- function(n_sims = n_sims, sim_type = 1, vast_fit = vast_fit, time_cov = "Year_Cov", time_cov_method = time_cov_method, index_shapes = index_shapefiles, historical_uncertainty = "none", n_samples = 1, n_proj = n_proj, new_covariate_data = vast_pred_df_post_fit, new_catchability_data = NULL, proj_objects = proj_objects, seed = 123456, nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df")) {
-  if (FALSE) {
-    n_sims <- 1
-    sim_type <- 1
-    tar_load(vast_fit)
-    time_cov <- NULL
-    time_cov_method <- NULL
-    tar_load(index_shapefiles)
-    historical_uncertainty <- "none"
-    n_samples <- 1
-    n_proj <- 3
-    tar_load(vast_pred_df_post_fit)
-    new_covariate_data <- vast_pred_df_post_fit
-    new_catchability_data <- NULL
-    tar_load(proj_objects)
-    proj_objects <- proj_objects
-    seed <- 123456
-    nice_category_names <- nice_category_names
-    out_dir <- paste0(res_root, "prediction_df")
-  }
-  sim_res <- vector("list", length = n_sims)
-  for (rI in 1:n_sims) {
-    sim_res[[rI]] <- project.fit_model(
-      sim_type = sim_type,
-      x = vast_fit,
-      time_cov = time_cov,
-      time_cov_method = time_cov_method,
-      index_shapes = index_shapes,
-      historical_uncertainty = historical_uncertainty,
-      n_samples = 1,
-      n_proj = n_proj,
-      new_covariate_data = new_covariate_data,
-      new_catchability_data = NULL,
-      proj_X_contrasts = proj_objects[["proj_X_contrasts"]],
-      proj_X1_config = proj_objects[["proj_X1_config"]],
-      proj_X2_config = proj_objects[["proj_X2_config"]],
-      proj_map = proj_objects[["proj_map"]],
-      seed = rI
-    )
-    gc()
-  }
-  saveRDS(sim_res, file = paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_projections.rds"))
-  return(sim_res)
-}
+# project.fit_model_wrapper <- function(n_sims = n_sims, sim_type = 1, vast_fit = vast_fit, time_cov = "Year_Cov", time_cov_method = time_cov_method, index_shapes = index_shapefiles, historical_uncertainty = "none", n_samples = 1, n_proj = n_proj, new_covariate_data = vast_pred_df_post_fit, new_catchability_data = NULL, proj_objects = proj_objects, seed = 123456, nice_category_names = nice_category_names, out_dir = paste0(res_root, "prediction_df")) {
+#   if (FALSE) {
+#     n_sims <- 1
+#     sim_type <- 1
+#     tar_load(vast_fit)
+#     time_cov <- NULL
+#     time_cov_method <- NULL
+#     tar_load(index_shapefiles)
+#     historical_uncertainty <- "none"
+#     n_samples <- 1
+#     n_proj <- 3
+#     tar_load(vast_pred_df_post_fit)
+#     new_covariate_data <- vast_pred_df_post_fit
+#     new_catchability_data <- NULL
+#     tar_load(proj_objects)
+#     proj_objects <- proj_objects
+#     seed <- 123456
+#     nice_category_names <- nice_category_names
+#     out_dir <- paste0(res_root, "prediction_df")
+#   }
+#   sim_res <- vector("list", length = n_sims)
+#   for (rI in 1:n_sims) {
+#     sim_res[[rI]] <- project.fit_model(
+#       sim_type = sim_type,
+#       x = vast_fit,
+#       time_cov = time_cov,
+#       time_cov_method = time_cov_method,
+#       index_shapes = index_shapes,
+#       historical_uncertainty = historical_uncertainty,
+#       n_samples = 1,
+#       n_proj = n_proj,
+#       new_covariate_data = new_covariate_data,
+#       new_catchability_data = NULL,
+#       proj_X_contrasts = proj_objects[["proj_X_contrasts"]],
+#       proj_X1_config = proj_objects[["proj_X1_config"]],
+#       proj_X2_config = proj_objects[["proj_X2_config"]],
+#       proj_map = proj_objects[["proj_map"]],
+#       seed = rI
+#     )
+#     gc()
+#   }
+#   saveRDS(sim_res, file = paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_projections.rds"))
+#   return(sim_res)
+# }
 
 project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covariate_data = NULL, new_catchability_data = NULL, extrapolation_list = NULL, input_grid = NULL, spatial_list = NULL, historical_uncertainty = "both", seed = 123456, working_dir = paste0(getwd(), "/"), ...) {
 
@@ -1822,6 +1822,15 @@ project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covari
         new_catchability_data = new_catchability_data[, match(colnames(x$catchability_data), colnames(new_catchability_data))]
         new_catchability_data = rbind(x$catchability_data, new_catchability_data)
     }
+
+    # Errors
+    if (any(x$data_list$RhoConfig %in% c(0, 3))) {
+      # stop("`project_model` is currently designed to work only with temporally varying epsilon and beta terms")
+    }
+    if (any(x$data_list$RhoConfig[c("Beta1", "Beta2")] %in% c(0))) {
+      stop("`project_model` is currently designed to work only with temporally varying or constant beta terms")
+    }
+    
 
     ##############
     # Step 1: Generate uncertainty in historical period
@@ -1925,7 +1934,20 @@ project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covari
                 stop("Check matching")
             }
         }
-
+        
+        # Deal with beta1/beta2 = 3
+        if (x$data_list$RhoConfig["Beta1"] == 3) {
+          tmp = ParList1$beta1_ft
+          tmp[, proj_t] = NA
+          ParList1$beta1_ft = ifelse(is.na(tmp), rowMeans(tmp, na.rm = TRUE) %o% rep(1, ncol(tmp)), ParList1$beta1_ft)
+        }
+        
+        if (x$data_list$RhoConfig["Beta2"] == 3) {
+          tmp = ParList1$beta2_ft
+          tmp[, proj_t] = NA
+          ParList1$beta2_ft = ifelse(is.na(tmp), rowMeans(tmp, na.rm = TRUE) %o% rep(1, ncol(tmp)), ParList1$beta2_ft)
+        }
+        
         ##############
         # Step 5: Rebuild model
         ##############
@@ -1973,165 +1995,165 @@ project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covari
     return(out)
 }
 
-predict.fit_model_aja <- function(x, what = "D_i", Lat_i, Lon_i, t_i, a_i, c_iz = rep(0, length(t_i)), v_i = rep(0, length(t_i)), new_covariate_data = NULL, new_catchability_data = NULL, do_checks = TRUE, working_dir = paste0(getwd(), "/")) {
-  if (FALSE) {
-    tar_load(vast_fit)
-    x <- vast_fit
-    what <- "D_i"
-    Lat_i <- x$data_frame$Lat_i
-    # Lat_i = pred_cov_dat_use$Lat
-    Lon_i <- x$data_frame$Lon_i
-    # Lon_i = pred_cov_dat_use$Lon
-    t_i <- x$data_frame$t_i
-    # t_i = pred_cov_dat_use$Year
-    a_i <- x$data_frame$a_i
-    # a_i<- rep(unique(pred_sampled_areas), length(Lat_i))
-    c_iz <- rep(0, length(t_i))
-    # c_iz<- rep(unique(predict_category), length(Lat_i))
-    v_i <- rep(0, length(t_i))
-    # v_i<- rep(unique(predict_vessel), length(t_i))
-    new_covariate_data <- NULL
-    # new_covariate_data = pred_cov_dat_use
-    new_catchability_data <- NULL
-    # new_catchability_data = pred_catch_dat_use
-    do_checks <- FALSE
+# predict.fit_model_aja <- function(x, what = "D_i", Lat_i, Lon_i, t_i, a_i, c_iz = rep(0, length(t_i)), v_i = rep(0, length(t_i)), new_covariate_data = NULL, new_catchability_data = NULL, do_checks = TRUE, working_dir = paste0(getwd(), "/")) {
+#   if (FALSE) {
+#     tar_load(vast_fit)
+#     x <- vast_fit
+#     what <- "D_i"
+#     Lat_i <- x$data_frame$Lat_i
+#     # Lat_i = pred_cov_dat_use$Lat
+#     Lon_i <- x$data_frame$Lon_i
+#     # Lon_i = pred_cov_dat_use$Lon
+#     t_i <- x$data_frame$t_i
+#     # t_i = pred_cov_dat_use$Year
+#     a_i <- x$data_frame$a_i
+#     # a_i<- rep(unique(pred_sampled_areas), length(Lat_i))
+#     c_iz <- rep(0, length(t_i))
+#     # c_iz<- rep(unique(predict_category), length(Lat_i))
+#     v_i <- rep(0, length(t_i))
+#     # v_i<- rep(unique(predict_vessel), length(t_i))
+#     new_covariate_data <- NULL
+#     # new_covariate_data = pred_cov_dat_use
+#     new_catchability_data <- NULL
+#     # new_catchability_data = pred_catch_dat_use
+#     do_checks <- FALSE
 
-    x <- vast_fit
-    what <- "Index_gctl"
-    Lat_i <- predict_covariates_df_all[, "DECDEG_BEGLAT"]
-    Lon_i <- predict_covariates_df_all[, "DECDEG_BEGLON"]
-    t_i <- predict_covariates_df_all[, "t_i"]
-    a_i <- predict_covariates_df_all[, "a_i"]
-    c_iz <- predict_covariates_df_all[, "c_iz"]
-    v_i <- predict_covariates_df_all[, "v_i"]
-    new_covariate_data <- pred_cov_dat_use
-    new_catchability_data <- pred_catch_dat_use
-    do_checks <- FALSE
-    working_dir <- paste0(getwd(), "/")
+#     x <- vast_fit
+#     what <- "Index_gctl"
+#     Lat_i <- predict_covariates_df_all[, "DECDEG_BEGLAT"]
+#     Lon_i <- predict_covariates_df_all[, "DECDEG_BEGLON"]
+#     t_i <- predict_covariates_df_all[, "t_i"]
+#     a_i <- predict_covariates_df_all[, "a_i"]
+#     c_iz <- predict_covariates_df_all[, "c_iz"]
+#     v_i <- predict_covariates_df_all[, "v_i"]
+#     new_covariate_data <- pred_cov_dat_use
+#     new_catchability_data <- pred_catch_dat_use
+#     do_checks <- FALSE
+#     working_dir <- paste0(getwd(), "/")
 
-    # object = vast_fit
-    # x = object
-    # Lat_i = object$data_frame$Lat_i
-    # Lon_i = object$data_frame$Lon_i
-    # t_i = object$data_frame$t_i
-    # a_i = object$data_frame$a_i
-    # c_iz = rep(0,length(t_i))
-    # v_i = rep(0,length(t_i))
-    # what = "P1_iz"
-    # new_covariate_data = object$covariate_data
-    # new_catchability_data = object$catchability_data
-    # do_checks = FALSE
+#     # object = vast_fit
+#     # x = object
+#     # Lat_i = object$data_frame$Lat_i
+#     # Lon_i = object$data_frame$Lon_i
+#     # t_i = object$data_frame$t_i
+#     # a_i = object$data_frame$a_i
+#     # c_iz = rep(0,length(t_i))
+#     # v_i = rep(0,length(t_i))
+#     # what = "P1_iz"
+#     # new_covariate_data = object$covariate_data
+#     # new_catchability_data = object$catchability_data
+#     # do_checks = FALSE
 
-    x <- vast_fitted_sdm
-    what <- predict_variable
-    Lat_i <- pred_lats
-    Lon_i <- pred_lons
-    t_i <- pred_times
-    a_i <- pred_sampled_areas
-    c_iz <- pred_category
-    v_i <- rep(0, length(t_i))
-    new_covariate_data <- pred_cov_dat_use
-    new_covariate_data <- pred_covs_out_final
-    new_catchability_data <- pred_catch_dat_use
-    do_checks <- FALSE
-    working_dir <- paste0(getwd(), "/")
-  }
+#     x <- vast_fitted_sdm
+#     what <- predict_variable
+#     Lat_i <- pred_lats
+#     Lon_i <- pred_lons
+#     t_i <- pred_times
+#     a_i <- pred_sampled_areas
+#     c_iz <- pred_category
+#     v_i <- rep(0, length(t_i))
+#     new_covariate_data <- pred_cov_dat_use
+#     new_covariate_data <- pred_covs_out_final
+#     new_catchability_data <- pred_catch_dat_use
+#     do_checks <- FALSE
+#     working_dir <- paste0(getwd(), "/")
+#   }
 
-  message("`predict.fit_model(.)` is in beta-testing, and please explore results carefully prior to using")
+#   message("`predict.fit_model(.)` is in beta-testing, and please explore results carefully prior to using")
 
-  # Check issues
-  if (!(what %in% names(x$Report)) || (length(x$Report[[what]]) != x$data_list$n_i)) {
-    stop("`what` can only take a few options")
-  }
-  if (!is.null(new_covariate_data)) {
-    # Confirm all columns are available
-    if (!all(colnames(x$covariate_data) %in% colnames(new_covariate_data))) {
-      stop("Please ensure that all columns of `x$covariate_data` are present in `new_covariate_data`")
-    }
-    # Eliminate unnecessary columns
-    new_covariate_data <- new_covariate_data[, match(colnames(x$covariate_data), colnames(new_covariate_data))]
-    # Eliminate old-covariates that are also present in new_covariate_data
-    NN <- RANN::nn2(query = x$covariate_data[, c("Lat", "Lon", "Year")], data = new_covariate_data[, c("Lat", "Lon", "Year")], k = 1)
-    if (any(NN$nn.dist == 0)) {
-      x$covariate_data <- x$covariate_data[-which(NN$nn.dist == 0), , drop = FALSE]
-    }
-  }
-  if (!is.null(new_catchability_data)) {
-    # Confirm all columns are available
-    if (!all(colnames(x$catchability_data) %in% colnames(new_catchability_data))) {
-      stop("Please ensure that all columns of `x$catchability_data` are present in `new_covariate_data`")
-    }
-    # Eliminate unnecessary columns
-    new_catchability_data <- new_catchability_data[, match(colnames(x$catchability_data), colnames(new_catchability_data))]
-    # Eliminate old-covariates that are also present in new_covariate_data
-    NN <- RANN::nn2(query = x$catchability_data[, c("Lat", "Lon", "Year")], data = new_catchability_data[, c("Lat", "Lon", "Year")], k = 1)
-    if (any(NN$nn.dist == 0)) {
-      x$catchability_data <- x$catchability_data[-which(NN$nn.dist == 0), , drop = FALSE]
-    }
-  }
+#   # Check issues
+#   if (!(what %in% names(x$Report)) || (length(x$Report[[what]]) != x$data_list$n_i)) {
+#     stop("`what` can only take a few options")
+#   }
+#   if (!is.null(new_covariate_data)) {
+#     # Confirm all columns are available
+#     if (!all(colnames(x$covariate_data) %in% colnames(new_covariate_data))) {
+#       stop("Please ensure that all columns of `x$covariate_data` are present in `new_covariate_data`")
+#     }
+#     # Eliminate unnecessary columns
+#     new_covariate_data <- new_covariate_data[, match(colnames(x$covariate_data), colnames(new_covariate_data))]
+#     # Eliminate old-covariates that are also present in new_covariate_data
+#     NN <- RANN::nn2(query = x$covariate_data[, c("Lat", "Lon", "Year")], data = new_covariate_data[, c("Lat", "Lon", "Year")], k = 1)
+#     if (any(NN$nn.dist == 0)) {
+#       x$covariate_data <- x$covariate_data[-which(NN$nn.dist == 0), , drop = FALSE]
+#     }
+#   }
+#   if (!is.null(new_catchability_data)) {
+#     # Confirm all columns are available
+#     if (!all(colnames(x$catchability_data) %in% colnames(new_catchability_data))) {
+#       stop("Please ensure that all columns of `x$catchability_data` are present in `new_covariate_data`")
+#     }
+#     # Eliminate unnecessary columns
+#     new_catchability_data <- new_catchability_data[, match(colnames(x$catchability_data), colnames(new_catchability_data))]
+#     # Eliminate old-covariates that are also present in new_covariate_data
+#     NN <- RANN::nn2(query = x$catchability_data[, c("Lat", "Lon", "Year")], data = new_catchability_data[, c("Lat", "Lon", "Year")], k = 1)
+#     if (any(NN$nn.dist == 0)) {
+#       x$catchability_data <- x$catchability_data[-which(NN$nn.dist == 0), , drop = FALSE]
+#     }
+#   }
 
-  # Process covariates
-  covariate_data <- rbind(x$covariate_data, new_covariate_data)
-  catchability_data <- rbind(x$catchability_data, new_catchability_data)
+#   # Process covariates
+#   covariate_data <- rbind(x$covariate_data, new_covariate_data)
+#   catchability_data <- rbind(x$catchability_data, new_catchability_data)
 
-  # Process inputs
-  PredTF_i <- c(x$data_list$PredTF_i, rep(1, length(t_i)))
-  b_i <- c(x$data_frame[, "b_i"], sample(c(0, 1), size = length(t_i), replace = TRUE))
-  c_iz <- rbind(matrix(x$data_frame[, grep("c_iz", names(x$data_frame))]), matrix(c_iz))
-  Lat_i <- c(x$data_frame[, "Lat_i"], Lat_i)
-  Lon_i <- c(x$data_frame[, "Lon_i"], Lon_i)
-  a_i <- c(x$data_frame[, "a_i"], a_i)
-  v_i <- c(x$data_frame[, "v_i"], v_i)
-  t_i <- c(x$data_frame[, "t_i"], t_i)
-  # assign("b_i", b_i, envir=.GlobalEnv)
+#   # Process inputs
+#   PredTF_i <- c(x$data_list$PredTF_i, rep(1, length(t_i)))
+#   b_i <- c(x$data_frame[, "b_i"], sample(c(0, 1), size = length(t_i), replace = TRUE))
+#   c_iz <- rbind(matrix(x$data_frame[, grep("c_iz", names(x$data_frame))]), matrix(c_iz))
+#   Lat_i <- c(x$data_frame[, "Lat_i"], Lat_i)
+#   Lon_i <- c(x$data_frame[, "Lon_i"], Lon_i)
+#   a_i <- c(x$data_frame[, "a_i"], a_i)
+#   v_i <- c(x$data_frame[, "v_i"], v_i)
+#   t_i <- c(x$data_frame[, "t_i"], t_i)
+#   # assign("b_i", b_i, envir=.GlobalEnv)
 
-  # Build information regarding spatial location and correlation
-  message("\n### Re-making spatial information")
-  spatial_args_new <- list("anisotropic_mesh" = x$spatial_list$MeshList$anisotropic_mesh, "Kmeans" = x$spatial_list$Kmeans, "Lon_i" = Lon_i, "Lat_i" = Lat_i)
-  spatial_args_input <- combine_lists(input = spatial_args_new, default = x$input_args$spatial_args_input)
-  spatial_list <- do.call(what = make_spatial_info, args = spatial_args_input)
+#   # Build information regarding spatial location and correlation
+#   message("\n### Re-making spatial information")
+#   spatial_args_new <- list("anisotropic_mesh" = x$spatial_list$MeshList$anisotropic_mesh, "Kmeans" = x$spatial_list$Kmeans, "Lon_i" = Lon_i, "Lat_i" = Lat_i)
+#   spatial_args_input <- combine_lists(input = spatial_args_new, default = x$input_args$spatial_args_input)
+#   spatial_list <- do.call(what = make_spatial_info, args = spatial_args_input)
 
-  # Check spatial_list
-  if (!all.equal(spatial_list$MeshList, x$spatial_list$MeshList)) {
-    stop("`MeshList` generated during `predict.fit_model` doesn't match that of original fit; please email package author to report issue")
-  }
+#   # Check spatial_list
+#   if (!all.equal(spatial_list$MeshList, x$spatial_list$MeshList)) {
+#     stop("`MeshList` generated during `predict.fit_model` doesn't match that of original fit; please email package author to report issue")
+#   }
 
-  # Build data
-  # Do *not* restrict inputs to formalArgs(make_data) because other potential inputs are still parsed by make_data for backwards compatibility
-  message("\n### Re-making data object")
-  data_args_new <- list(
-    "c_iz" = c_iz, "b_i" = b_i, "a_i" = a_i, "v_i" = v_i, "PredTF_i" = PredTF_i,
-    "t_i" = t_i, "spatial_list" = spatial_list,
-    "covariate_data" = covariate_data, "catchability_data" = catchability_data
-  )
-  data_args_input <- combine_lists(input = data_args_new, default = x$input_args$data_args_input) # Do *not* use args_to_use
-  data_list <- do.call(what = make_data, args = data_args_input)
-  data_list$n_g <- 0
+#   # Build data
+#   # Do *not* restrict inputs to formalArgs(make_data) because other potential inputs are still parsed by make_data for backwards compatibility
+#   message("\n### Re-making data object")
+#   data_args_new <- list(
+#     "c_iz" = c_iz, "b_i" = b_i, "a_i" = a_i, "v_i" = v_i, "PredTF_i" = PredTF_i,
+#     "t_i" = t_i, "spatial_list" = spatial_list,
+#     "covariate_data" = covariate_data, "catchability_data" = catchability_data
+#   )
+#   data_args_input <- combine_lists(input = data_args_new, default = x$input_args$data_args_input) # Do *not* use args_to_use
+#   data_list <- do.call(what = make_data, args = data_args_input)
+#   data_list$n_g <- 0
 
-  # Build object
-  message("\n### Re-making TMB object")
-  model_args_default <- list("TmbData" = data_list, "RunDir" = working_dir, "Version" = x$settings$Version, "RhoConfig" = x$settings$RhoConfig, "loc_x" = spatial_list$loc_x, "Method" = spatial_list$Method, "Map" = x$tmb_list$Map)
-  model_args_input <- combine_lists(
-    input = list("Parameters" = x$ParHat),
-    default = model_args_default, args_to_use = formalArgs(make_model)
-  )
-  tmb_list <- do.call(what = make_model, args = model_args_input)
+#   # Build object
+#   message("\n### Re-making TMB object")
+#   model_args_default <- list("TmbData" = data_list, "RunDir" = working_dir, "Version" = x$settings$Version, "RhoConfig" = x$settings$RhoConfig, "loc_x" = spatial_list$loc_x, "Method" = spatial_list$Method, "Map" = x$tmb_list$Map)
+#   model_args_input <- combine_lists(
+#     input = list("Parameters" = x$ParHat),
+#     default = model_args_default, args_to_use = formalArgs(make_model)
+#   )
+#   tmb_list <- do.call(what = make_model, args = model_args_input)
 
-  # Extract output
-  Report <- tmb_list$Obj$report()
-  Y_i <- Report[[what]][(1 + nrow(x$data_frame)):length(Report$D_i)]
+#   # Extract output
+#   Report <- tmb_list$Obj$report()
+#   Y_i <- Report[[what]][(1 + nrow(x$data_frame)):length(Report$D_i)]
 
-  # sanity check
-  # if( all.equal(covariate_data,x$covariate_data) & Report$jnll!=x$Report$jnll){
-  if (do_checks == TRUE && (Report$jnll != x$Report$jnll)) {
-    message("Problem detected in `predict.fit_model`; returning outputs for diagnostic purposes")
-    Return <- list("Report" = Report, "data_list" = data_list)
-    return(Return)
-  }
+#   # sanity check
+#   # if( all.equal(covariate_data,x$covariate_data) & Report$jnll!=x$Report$jnll){
+#   if (do_checks == TRUE && (Report$jnll != x$Report$jnll)) {
+#     message("Problem detected in `predict.fit_model`; returning outputs for diagnostic purposes")
+#     Return <- list("Report" = Report, "data_list" = data_list)
+#     return(Return)
+#   }
 
-  # return prediction
-  return(Y_i)
-}
+#   # return prediction
+#   return(Y_i)
+# }
 
 # Designing a projection function
 #' @title Summarize prediction intervals from simulation results.
