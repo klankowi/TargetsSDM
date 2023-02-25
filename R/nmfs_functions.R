@@ -82,7 +82,7 @@ nmfs_make_tidy_occu<-function(nmfs_raw, nmfs_tows, species_table, spp_or_group, 
       dplyr::mutate(SVSPP = as.double(SVSPP)) %>%
       dplyr::filter(SVSPP %in% c(species_table$NMFS_SVSPP)) %>% # keep only Shackell species
       dplyr::group_by(ID, SVSPP) %>%
-      dplyr::summarise(ABUNDANCE = sum(ABUND_ADJ), BIOMASS = sum(BIOM_ADJ)) %>%
+      dplyr::summarise(ABUNDANCE = sum(unique(ABUND_ADJ)), BIOMASS = sum(unique(BIOM_ADJ))) %>%
       dplyr::mutate(PRESENCE = ifelse(ABUNDANCE > 0, 1, 0)) %>% # should all be 1s
       # presence = 1 if abundance >=1, presence = 0 if abundance = 0
       dplyr::select(ID, SVSPP, PRESENCE, BIOMASS, ABUNDANCE) %>%
