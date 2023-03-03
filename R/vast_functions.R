@@ -2636,7 +2636,7 @@ make_extrapolation_info_aja <- function(Region, projargs = NA, zone = NA, strata
   return(Return)
 }
 
-fit_model_aja <- function(settings, Method, Lat_i, Lon_i, t_i, b_i, a_i, c_iz = rep(0, length(b_i)), v_i = rep(0, length(b_i)), working_dir = paste0(getwd(), "/"), X1config_cp = NULL, X2config_cp = NULL, covariate_data, X1_formula = ~0, X2_formula = ~0, Q1config_k = NULL, Q2config_k = NULL, catchability_data, Q1_formula = ~0, Q2_formula = ~0, newtonsteps = 1, silent = TRUE, build_model = TRUE, run_model = TRUE, test_fit = TRUE, framework = "TMBad", use_new_epsilon = TRUE, ...) {
+fit_model_aja <- function(settings, Method, Lat_i, Lon_i, t_i, b_i, a_i, c_iz = rep(0, length(b_i)), v_i = rep(0, length(b_i)), category_names = NULL, working_dir = paste0(getwd(), "/"), X1config_cp = NULL, X2config_cp = NULL, covariate_data, X1_formula = ~0, X2_formula = ~0, Q1config_k = NULL, Q2config_k = NULL, catchability_data, Q1_formula = ~0, Q2_formula = ~0, newtonsteps = 1, silent = TRUE, build_model = TRUE, run_model = TRUE, test_fit = TRUE, framework = "TMBad", use_new_epsilon = TRUE, ...) {
   if (FALSE) {
     # Run vast_fit_sdm first...
 
@@ -2678,6 +2678,7 @@ fit_model_aja <- function(settings, Method, Lat_i, Lon_i, t_i, b_i, a_i, c_iz = 
   data_frame <- data.frame(Lat_i = Lat_i, Lon_i = Lon_i, a_i = a_i, v_i = v_i, b_i = b_i, t_i = t_i, c_iz = c_iz)
   year_labels <- seq(min(t_i), max(t_i))
   years_to_plot <- which(year_labels %in% t_i)
+  if(is.null(category_names)) category_names = paste0( 1:(max(c_iz,na.rm=TRUE)+1) )
   message("\n### Writing output from `fit_model` in directory: ", working_dir)
   dir.create(working_dir, showWarnings = FALSE, recursive = TRUE)
   capture.output(settings, file = file.path(working_dir, "settings.txt"))
