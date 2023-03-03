@@ -473,7 +473,7 @@ read_polyshape <- function(polyshape_path) {
   }
 
   # Read in polygon shapefile from file_path
-  shapefile <- st_read(polyshape_path)
+  shapefile <- st_make_valid(st_read(polyshape_path))
 
   # Return it
   return(shapefile)
