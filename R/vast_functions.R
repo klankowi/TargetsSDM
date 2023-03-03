@@ -1766,7 +1766,7 @@ make_vast_proj_objects <- function(vast_fit = vast_fit, time_covs, pred_covs_out
 
 make_new_cov_data<- function(vast_fit = vast_fit, climate_scenario = climate_scenario){
         # Read in data
-        cmip6_dat <- read.csv(paste0(here::here("data/supporting/predict"), climate_scenario, "_dat.csv"))
+        cmip6_dat <- read.csv(paste0(here::here("data/predict"), climate_scenario, "_dat.csv"))
         new_cov_dat <- cmip6_dat %>%
             dplyr::select(., Year, Year_Cov, Season, Depth, BT_seasonal, Lat, Lon)
         new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
@@ -1785,7 +1785,7 @@ make_new_cov_data<- function(vast_fit = vast_fit, climate_scenario = climate_sce
 make_new_catch_data<- function(vast_fit = vast_fit, climate_scenario = climate_scenario){
 
    # Read in data
-   cmip6_dat <- read.csv(paste0(here::here("data/supporting/predict"), climate_scenario, "_dat.csv"))
+   cmip6_dat <- read.csv(paste0(here::here("data/predict"), climate_scenario, "_dat.csv"))
    new_cov_dat <- cmip6_dat %>%
             dplyr::select(., Year, Year_Cov, Season, Depth, BT_seasonal, Lat, Lon)
             new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
