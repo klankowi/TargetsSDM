@@ -1764,6 +1764,241 @@ make_vast_proj_objects <- function(vast_fit = vast_fit, time_covs, pred_covs_out
 #   return(sim_res)
 # }
 
+make_new_cov_data<- function(vast_fit = vast_fit, climate_scenario = climate_scenario){
+        # Read in data
+        cmip6_dat <- read.csv(paste0(here::here("data/supporting/predict"), climate_scenario, "_dat.csv"))
+        new_cov_dat <- cmip6_dat %>%
+            dplyr::select(., Year, Year_Cov, Season, Depth, BT_seasonal, Lat, Lon)
+        new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
+        
+        # Make sure we have the right "year" index
+        match_year_cov <- vast_fit$covariate_data %>%
+            dplyr::select(., Year, Year_Cov, Season) %>%
+            distinct()
+
+        new_cov_dat <- new_cov_dat %>%
+            left_join(., match_year_cov)
+
+        return(new_cov_dat)
+}
+
+make_new_catch_data<- function(vast_fit = vast_fit, climate_scenario = climate_scenario){
+
+   # Read in data
+   cmip6_dat <- read.csv(paste0(here::here("data/supporting/predict"), climate_scenario, "_dat.csv"))
+   new_cov_dat <- cmip6_dat %>%
+            dplyr::select(., Year, Year_Cov, Season, Depth, BT_seasonal, Lat, Lon)
+            new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
+    
+    # Make sure we have the right "year" index
+    match_year_cov <- vast_fit$covariate_data %>%
+            dplyr::select(., Year, Year_Cov, Season) %>%
+            distinct()
+    
+    new_cov_dat <- new_cov_dat %>%
+    left_join(., match_year_cov)
+
+     # Explicit catchability data
+     new_catch_dat <- new_cov_dat %>%
+       dplyr::select(., Year, Year_Cov, Season, Lat, Lon) %>%
+       mutate(., Survey = factor("NMFS", levels = c("NMFS", "DFO")))
+     
+     return(new_catch_dat)
+
+}
+
+make_new_spatial_info<- function(vast_fit = vast_fit, new_cov_data = new_cov_data){
+  spatial_args_new <- list("n_x" = vast_fit$spatial_list$n_x, "anisotropic_mesh" = vast_fit$spatial_list$MeshList$anisotropic_mesh, "Kmeans" = vast_fit$spatial_list$Kmeans, "Lon_i" = c(vast_fit$data_frame$Lon_i, new_cov_data$Lon), "Lat_i" = c(vast_fit$data_frame$Lat_i, new_cov_data$Lat), "Extrapolation_List" = vast_fit$extrapolation_list, "grid_size_km" = vast_fit$settings$grid_size_km, "fine_scale" = vast_fit$spatial_list$fine_scale)
+  spatial_args_input <- combine_lists(input = spatial_args_new, default = vast_fit$input_args$spatial_args_input)
+  proj_spatial <- do.call(what = make_spatial_info, args = spatial_args_input)
+  return(proj_spatial)
+}
+
+project_model_aja_targets<- function (x, what, n_proj = NULL, n_samples, uncert_res, new_covariate_data = NULL, 
+    new_catchability_data = NULL, extrapolation_list = NULL, 
+    input_grid = NULL, spatial_list = NULL, historical_uncertainty = "both", 
+    seed = 123456, working_dir = paste0(getwd(), "/"), ...) 
+{
+    if (FALSE) {
+        x = fit
+        what = c("Epsilon1_gct", "Epsilon2_gct", "eta1_gct", 
+            "eta2_gct", "P1_gct", "D_gct", "Index_ctl", "effective_area_ctl")
+        n_proj = 243 - 12
+        n_samples = 500
+        new_covariate_data = new_cov_dat
+        new_catchability_data = new_catch_dat
+        historical_uncertainty = "none"
+        seed = rI
+        working_dir = date_dir
+        extrapolation_list = fit$extrapolation_list
+        input_grid = fit$extrapolation_list$Data_Extrap[, c("Lon", 
+            "Lat", "Region", "Area_km2", "STRATA")]
+        spatial_list = proj_spatial
+    }
+
+    # Creating some necessary objects
+    n_proj = max(new_cov_data$Year) - max(x$covariate_data$Year)
+    extrapolation_list = x$extrapolation_list
+    input_grid = x$extrapolation_list$Data_Extrap[, c("Lon", "Lat", "Region", "Area_km2", "STRATA")]
+
+    Obj = x$tmb_list$Obj
+    Sdreport = x$parameter_estimates$SD
+    if (is.null(new_covariate_data)) {
+        new_covariate_data = x$covariate_data
+    }
+    else {
+        if (!all(colnames(x$covariate_data) %in% colnames(new_covariate_data))) {
+            stop("Please ensure that all columns of `x$covariate_data` are present in `new_covariate_data`")
+        }
+        n_proj_obs = nrow(new_covariate_data)
+        t_proj = new_covariate_data$Year
+        lat_proj = new_covariate_data$Lat
+        lon_proj = new_covariate_data$Lon
+        new_covariate_data = new_covariate_data[, match(colnames(x$covariate_data), 
+            colnames(new_covariate_data))]
+        NN = RANN::nn2(query = x$covariate_data[, c("Lat", "Lon", 
+            "Year")], data = new_covariate_data[, c("Lat", "Lon", 
+            "Year")], k = 1)
+        if (any(NN$nn.dist == 0)) {
+            x$covariate_data = x$covariate_data[-which(NN$nn.dist == 
+                0), , drop = FALSE]
+        }
+        new_covariate_data$Season <- factor(new_covariate_data$Season, 
+            levels = levels(x$covariate_data$Season))
+    }
+    if (is.null(new_catchability_data)) {
+        new_catchability_data = x$catchability_data
+    }
+    else {
+        if (!all(colnames(x$catchability_data) %in% colnames(new_catchability_data))) {
+            stop("Please ensure that all columns of `x$catchability_data` are present in `new_catchability_data`")
+        }
+        new_catchability_data = new_catchability_data[, match(colnames(x$catchability_data), 
+            colnames(new_catchability_data))]
+        new_catchability_data = rbind(x$catchability_data, new_catchability_data)
+    }
+    if (any(x$data_list$RhoConfig %in% c(0, 3))) {
+    }
+    if (any(x$data_list$RhoConfig[c("Beta1", "Beta2")] %in% c(0))) {
+        stop("`project_model` is currently designed to work only with temporally varying or constant beta terms")
+    }
+    rmvnorm_prec <- function(mu, prec, n.sims, seed) {
+        set.seed(seed)
+        z <- matrix(rnorm(length(mu) * n.sims), ncol = n.sims)
+        L <- Matrix::Cholesky(prec, super = TRUE)
+        z <- Matrix::solve(L, z, system = "Lt")
+        z <- Matrix::solve(L, z, system = "Pt")
+        z <- as.matrix(z)
+        return(mu + z)
+    }
+    if (historical_uncertainty == "both") {
+        u_zr = rmvnorm_prec(mu = Obj$env$last.par.best, prec = Sdreport$jointPrecision, 
+            n.sims = n_samples, seed = seed)
+    }
+    else if (historical_uncertainty == "random") {
+        Obj$retape()
+        Obj$fn(x$parameter_estimates$par)
+        u_zr = Obj$env$last.par.best %o% rep(1, n_samples)
+        set.seed(seed)
+        MC = Obj$env$MC(keep = TRUE, n = n_samples, antithetic = FALSE)
+        u_zr[Obj$env$random, ] = attr(MC, "samples")
+    }
+    else if (historical_uncertainty == "none") {
+        u_zr = Obj$env$last.par.best %o% rep(1, n_samples)
+    }
+    else {
+        stop("Check `historical_uncertainty` argument")
+    }
+    t_i = c(x$data_frame$t_i, t_proj)
+    Lon_i = c(x$data_frame$Lon_i, lon_proj)
+    Lat_i = c(x$data_frame$Lat_i, lat_proj)
+    b_i = c(x$data_list$b_i, as_units(sample(c(0, 1), size = n_proj_obs, 
+        replace = TRUE), units(x$data_list$b_i)))
+    v_i = c(x$data_frame$v_i, rep(0, n_proj_obs))
+    a_i = c(x$data_list$a_i, as_units(rep(mean(x$data_frame$a_i), 
+        n_proj_obs), units(fit$data_list$a_i)))
+    PredTF_i = c(x$data_list$PredTF_i, rep(1, n_proj_obs))
+    c_iz = rbind(matrix(x$data_list$c_iz), matrix(0, nrow = n_proj_obs))
+    x1 = fit_model(settings = x$settings, Lat_i = Lat_i, Lon_i = Lon_i, 
+        t_i = t_i, b_i = b_i, a_i = a_i, v_i = v_i, c_iz = c_iz, 
+        PredTF_i = PredTF_i, covariate_data = new_covariate_data, 
+        X1_formula = x$X1_formula, X2_formula = x$X2_formula, 
+        X_contrasts = list(Season = contrasts(new_covariate_data$Season, 
+            contrasts = FALSE)), X1config_cp = x$X1config_cp, 
+        X2config_cp = x$X2config_cp, catchability_data = new_catchability_data, 
+        Q1config_k = x$Q1config_k, Q2config_k = x$Q2config_k, 
+        Q1_formula = x$Q1_formula, Q2_formula = x$Q2_formula, 
+        build_model = FALSE, working_dir = working_dir, input_grid = input_grid, 
+        extrapolation_list = extrapolation_list, spatial_list = proj_spatial)
+    out = vector("list", length = n_samples)
+  
+    for (sampleI in seq_len(n_samples)) {
+        ParList1 = x1$tmb_list$Parameters
+        ParList = Obj$env$parList(par = u_zr[, sampleI])
+        for (i in seq_along(ParList)) {
+            dim = function(x) {
+                if (is.vector(x)) {
+                  return(length(x))
+                }
+                else {
+                  return(base::dim(x))
+                }
+            }
+            dim_match = (dim(ParList[[i]]) == dim(ParList1[[i]]))
+            if (sum(dim_match == FALSE) == 0) {
+                ParList1[[i]] = ParList[[i]]
+            }
+            else if (sum(dim_match == FALSE) == 1) {
+                dim_list = lapply(dim(ParList[[i]]), FUN = function(x) {
+                  seq_len(x)
+                })
+                ParList1[[i]][as.matrix(expand.grid(dim_list))] = ParList[[i]][as.matrix(expand.grid(dim_list))]
+            }
+            else if (sum(dim_match == FALSE) >= 2) {
+                stop("Check matching")
+            }
+        }
+        if (x$data_list$RhoConfig["Beta1"] == 3) {
+            tmp = ParList1$beta1_ft
+            tmp[, n_proj] = NA
+            ParList1$beta1_ft = ifelse(is.na(tmp), rowMeans(tmp, 
+                na.rm = TRUE) %o% rep(1, ncol(tmp)), ParList1$beta1_ft)
+        }
+        if (x$data_list$RhoConfig["Beta2"] == 3) {
+            tmp = ParList1$beta2_ft
+            tmp[, n_proj] = NA
+            ParList1$beta2_ft = ifelse(is.na(tmp), rowMeans(tmp, 
+                na.rm = TRUE) %o% rep(1, ncol(tmp)), ParList1$beta2_ft)
+        }
+        x2 = fit_model(settings = x$settings, Lat_i = Lat_i, 
+            Lon_i = Lon_i, t_i = t_i, b_i = b_i, a_i = a_i, v_i = v_i, 
+            c_iz = c_iz, PredTF_i = PredTF_i, covariate_data = new_covariate_data, 
+            X1_formula = x$X1_formula, X2_formula = x$X2_formula, 
+            X1config_cp = x$X1config_cp, X2config_cp = x$X2config_cp, 
+            X_contrasts = list(Season = contrasts(new_covariate_data$Season, 
+                contrasts = FALSE)), catchability_data = new_catchability_data, 
+            Q1config_k = x$Q1config_k, Q2config_k = x$Q2config_k, 
+            Q1_formula = x$Q1_formula, Q2_formula = x$Q2_formula, 
+            run_model = FALSE, Parameters = ParList1, working_dir = working_dir, 
+            input_grid = input_grid, extrapolation_list = extrapolation_list, 
+            spatial_list = proj_spatial)
+        x2$tmb_list$Obj$env$data$Options_list$simulate_t[] = c(rep(0, 
+            x$data_list$n_t), rep(1, n_proj))
+        out[[sampleI]] <- simulate_data(fit = x2, type = 1, random_seed = NULL)
+        x2$Report = out[[sampleI]]
+        out[[sampleI]] = amend_output(x2)
+        if (!is.null(what)) {
+            out[[sampleI]] <- out[[sampleI]][which(names(out[[sampleI]]) %in% 
+                what)]
+        }
+        gc()
+    }
+    if (n_samples == 1) {
+        out = out[[1]]
+    }
+    return(out)
+}
+
 project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covariate_data = NULL, 
     new_catchability_data = NULL, extrapolation_list = NULL, 
     input_grid = NULL, spatial_list = NULL, historical_uncertainty = "both", 
