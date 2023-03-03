@@ -2820,7 +2820,7 @@ fit_model_aja <- function(settings, Method, Lat_i, Lon_i, t_i, b_i, a_i, c_iz = 
 
 vast_read_region_shape <- function(region_shapefile_dir) {
   region_file <- list.files(region_shapefile_dir, pattern = ".shp$", full.names = TRUE)
-  region_sf <- st_read(region_file)
+  region_sf <- st_make_valid(st_read(region_file))
   return(region_sf)
 }
 
@@ -2833,7 +2833,7 @@ vast_read_index_shapes <- function(index_shapefiles_dir) {
   index_files <- list.files(index_shapefiles_dir, pattern = ".shp$", full.names = TRUE)
 
   for (i in seq_along(index_files)) {
-    index_shapes_temp <- st_read(index_files[i])
+    index_shapes_temp <- st_make_valid(st_read(index_files[i]))
     if (i == 1) {
       index_shapes_out <- index_shapes_temp
     } else {
