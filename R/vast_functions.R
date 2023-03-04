@@ -2839,7 +2839,7 @@ vast_read_index_shapes <- function(index_shapefiles_dir) {
   index_files <- list.files(index_shapefiles_dir, pattern = ".shp$", full.names = TRUE)
 
   for (i in seq_along(index_files)) {
-    index_shapes_temp <- make(index_files[i])
+    index_shapes_temp <- st_read(index_files[i])
     # index_shapes_temp$geometry <- index_shapes_temp$geometry %>%
     #   s2::s2_rebuild() %>%
     #   sf::st_as_sfc()
