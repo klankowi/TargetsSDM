@@ -1769,7 +1769,7 @@ make_vast_proj_objects <- function(vast_fit = vast_fit, time_covs, pred_covs_out
 
 make_new_cov_data<- function(vast_fit = vast_fit, climate_scenario = climate_scenario){
         # Read in data
-        cmip6_dat <- read.csv(paste0(here::here("data/predict"), climate_scenario, "_dat.csv"))
+        cmip6_dat <- read.csv(paste0(here::here("data/predict/"), climate_scenario, "_dat.csv"))
         new_cov_dat <- cmip6_dat %>%
             dplyr::select(., Year, Year_Cov, Season, Depth, BT_seasonal, Lat, Lon)
         new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
@@ -1788,7 +1788,7 @@ make_new_cov_data<- function(vast_fit = vast_fit, climate_scenario = climate_sce
 make_new_catch_data<- function(vast_fit = vast_fit, climate_scenario = climate_scenario){
 
    # Read in data
-   cmip6_dat <- read.csv(paste0(here::here("data/predict"), climate_scenario, "_dat.csv"))
+   cmip6_dat <- read.csv(paste0(here::here("data/predict/"), climate_scenario, "_dat.csv"))
    new_cov_dat <- cmip6_dat %>%
             dplyr::select(., Year, Year_Cov, Season, Depth, BT_seasonal, Lat, Lon)
             new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
@@ -2839,7 +2839,7 @@ vast_read_index_shapes <- function(index_shapefiles_dir) {
   index_files <- list.files(index_shapefiles_dir, pattern = ".shp$", full.names = TRUE)
 
   for (i in seq_along(index_files)) {
-    index_shapes_temp <- st_read(index_files[i])
+    index_shapes_temp <- make(index_files[i])
     # index_shapes_temp$geometry <- index_shapes_temp$geometry %>%
     #   s2::s2_rebuild() %>%
     #   sf::st_as_sfc()
