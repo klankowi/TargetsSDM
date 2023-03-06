@@ -2126,8 +2126,7 @@ project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covari
         X2config_cp = x$X2config_cp, catchability_data = new_catchability_data, 
         Q1config_k = x$Q1config_k, Q2config_k = x$Q2config_k, 
         Q1_formula = x$Q1_formula, Q2_formula = x$Q2_formula, 
-        build_model = FALSE, working_dir = working_dir, input_grid = input_grid, 
-        extrapolation_list = extrapolation_list, spatial_list = proj_spatial)
+        build_model = FALSE, working_dir = working_dir)
     }
 
     out = vector("list", length = n_samples)
@@ -2196,9 +2195,7 @@ project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covari
             X1config_cp = x$X1config_cp, X2config_cp = x$X2config_cp, catchability_data = new_catchability_data, 
             Q1config_k = x$Q1config_k, Q2config_k = x$Q2config_k, 
             Q1_formula = x$Q1_formula, Q2_formula = x$Q2_formula, 
-            run_model = FALSE, Parameters = ParList1, working_dir = working_dir, 
-            input_grid = input_grid, extrapolation_list = extrapolation_list, 
-            spatial_list = proj_spatial)
+            run_model = FALSE, Parameters = ParList1, working_dir = working_dir)
         }
          x2$tmb_list$Obj$env$data$Options_list$simulate_t[] = c(rep(
            0,
