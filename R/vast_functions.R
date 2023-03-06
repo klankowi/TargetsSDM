@@ -2105,7 +2105,9 @@ project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covari
         n_proj_obs), units(fit$data_list$a_i)))
     PredTF_i = c(x$data_list$PredTF_i, rep(1, n_proj_obs))
     c_iz = rbind(matrix(x$data_list$c_iz), matrix(0, nrow = n_proj_obs))
-    x1 = fit_model(settings = x$settings, Lat_i = Lat_i, Lon_i = Lon_i, 
+
+    if("Season" %in% colnames(new_covariate_data)){
+      x1 = fit_model(settings = x$settings, Lat_i = Lat_i, Lon_i = Lon_i, 
         t_i = t_i, b_i = b_i, a_i = a_i, v_i = v_i, c_iz = c_iz, 
         PredTF_i = PredTF_i, covariate_data = new_covariate_data, 
         X1_formula = x$X1_formula, X2_formula = x$X2_formula, 
@@ -2116,6 +2118,18 @@ project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covari
         Q1_formula = x$Q1_formula, Q2_formula = x$Q2_formula, 
         build_model = FALSE, working_dir = working_dir, input_grid = input_grid, 
         extrapolation_list = extrapolation_list, spatial_list = proj_spatial)
+    } else {
+      x1 = fit_model(settings = x$settings, Lat_i = Lat_i, Lon_i = Lon_i, 
+        t_i = t_i, b_i = b_i, a_i = a_i, v_i = v_i, c_iz = c_iz, 
+        PredTF_i = PredTF_i, covariate_data = new_covariate_data, 
+        X1_formula = x$X1_formula, X2_formula = x$X2_formula, X1config_cp = x$X1config_cp, 
+        X2config_cp = x$X2config_cp, catchability_data = new_catchability_data, 
+        Q1config_k = x$Q1config_k, Q2config_k = x$Q2config_k, 
+        Q1_formula = x$Q1_formula, Q2_formula = x$Q2_formula, 
+        build_model = FALSE, working_dir = working_dir, input_grid = input_grid, 
+        extrapolation_list = extrapolation_list, spatial_list = proj_spatial)
+    }
+
     out = vector("list", length = n_samples)
     proj_track_start <- data.frame(Progress = "Start")
     write.table(proj_track_start, file = paste0(working_dir, 
@@ -2154,12 +2168,15 @@ project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covari
                 na.rm = TRUE) %o% rep(1, ncol(tmp)), ParList1$beta1_ft)
         }
         if (x$data_list$RhoConfig["Beta2"] == 3) {
-            tmp = ParList1$beta2_ft
-            tmp[, n_proj] = NA
-            ParList1$beta2_ft = ifelse(is.na(tmp), rowMeans(tmp, 
-                na.rm = TRUE) %o% rep(1, ncol(tmp)), ParList1$beta2_ft)
+          tmp = ParList1$beta2_ft
+          tmp[, n_proj] = NA
+          ParList1$beta2_ft = ifelse(is.na(tmp), rowMeans(tmp,
+            na.rm = TRUE
+          ) %o% rep(1, ncol(tmp)), ParList1$beta2_ft)
         }
-        x2 = fit_model(settings = x$settings, Lat_i = Lat_i, 
+        
+        if("Season" %in% colnames(new_covariate_data)){
+           x2 = fit_model(settings = x$settings, Lat_i = Lat_i, 
             Lon_i = Lon_i, t_i = t_i, b_i = b_i, a_i = a_i, v_i = v_i, 
             c_iz = c_iz, PredTF_i = PredTF_i, covariate_data = new_covariate_data, 
             X1_formula = x$X1_formula, X2_formula = x$X2_formula, 
@@ -2171,8 +2188,22 @@ project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covari
             run_model = FALSE, Parameters = ParList1, working_dir = working_dir, 
             input_grid = input_grid, extrapolation_list = extrapolation_list, 
             spatial_list = proj_spatial)
-        x2$tmb_list$Obj$env$data$Options_list$simulate_t[] = c(rep(0, 
-            x$data_list$n_t), rep(1, n_proj))
+        } else {
+           x2 = fit_model(settings = x$settings, Lat_i = Lat_i, 
+            Lon_i = Lon_i, t_i = t_i, b_i = b_i, a_i = a_i, v_i = v_i, 
+            c_iz = c_iz, PredTF_i = PredTF_i, covariate_data = new_covariate_data, 
+            X1_formula = x$X1_formula, X2_formula = x$X2_formula, 
+            X1config_cp = x$X1config_cp, X2config_cp = x$X2config_cp, catchability_data = new_catchability_data, 
+            Q1config_k = x$Q1config_k, Q2config_k = x$Q2config_k, 
+            Q1_formula = x$Q1_formula, Q2_formula = x$Q2_formula, 
+            run_model = FALSE, Parameters = ParList1, working_dir = working_dir, 
+            input_grid = input_grid, extrapolation_list = extrapolation_list, 
+            spatial_list = proj_spatial)
+        }
+         x2$tmb_list$Obj$env$data$Options_list$simulate_t[] = c(rep(
+           0,
+           x$data_list$n_t
+         ), rep(1, n_proj))
         out[[sampleI]] <- simulate_data(fit = x2, type = 1, random_seed = NULL)
         x2$Report = out[[sampleI]]
         out[[sampleI]] = amend_output(x2)
