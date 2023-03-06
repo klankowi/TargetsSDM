@@ -1769,7 +1769,8 @@ make_vast_proj_objects <- function(vast_fit = vast_fit, time_covs, pred_covs_out
 
 make_new_cov_data<- function(vast_fit = vast_fit, climate_scenario = climate_scenario){
         # Read in data
-        cmip6_dat <- read.csv(paste0(here::here("data/predict/"), climate_scenario, "_dat.csv"))
+        cmip6_dat <- read_csv(paste0(here::here("data/predict/"), climate_scenario, "_dat.csv"))
+        print(cmip6_dat)
         new_cov_dat <- cmip6_dat %>%
             dplyr::select(., Year, Year_Cov, Season, Depth, BT_seasonal, Lat, Lon)
         new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
@@ -1791,7 +1792,7 @@ make_new_catch_data<- function(vast_fit = vast_fit, climate_scenario = climate_s
    cmip6_dat <- read.csv(paste0(here::here("data/predict/"), climate_scenario, "_dat.csv"))
    new_cov_dat <- cmip6_dat %>%
             dplyr::select(., Year, Year_Cov, Season, Depth, BT_seasonal, Lat, Lon)
-            new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
+  new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
     
     # Make sure we have the right "year" index
     match_year_cov <- vast_fit$covariate_data %>%
@@ -1799,7 +1800,7 @@ make_new_catch_data<- function(vast_fit = vast_fit, climate_scenario = climate_s
             distinct()
     
     new_cov_dat <- new_cov_dat %>%
-    left_join(., match_year_cov)
+      left_join(., match_year_cov)
 
      # Explicit catchability data
      new_catch_dat <- new_cov_dat %>%
@@ -2042,11 +2043,14 @@ project_model_aja<- function (x, what, n_proj, n_samples, uncert_res, new_covari
             "Year")], data = new_covariate_data[, c("Lat", "Lon", 
             "Year")], k = 1)
         if (any(NN$nn.dist == 0)) {
-            x$covariate_data = x$covariate_data[-which(NN$nn.dist == 
-                0), , drop = FALSE]
+          x$covariate_data = x$covariate_data[-which(NN$nn.dist ==
+            0), , drop = FALSE]
         }
-        new_covariate_data$Season <- factor(new_covariate_data$Season, 
-            levels = levels(x$covariate_data$Season))
+        if("Season" %in% colnames(new_covariate_data)){
+                  new_covariate_data$Season <- factor(new_covariate_data$Season,
+                    levels = levels(x$covariate_data$Season)
+                  )
+        }
     }
     if (is.null(new_catchability_data)) {
         new_catchability_data = x$catchability_data
