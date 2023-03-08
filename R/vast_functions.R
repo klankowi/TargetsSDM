@@ -1787,7 +1787,7 @@ make_new_cov_data<- function(vast_fit = vast_fit, climate_scenario = climate_sce
         match_year_cov <- vast_fit$covariate_data %>%
           dplyr::select(., Year, Year_Cov, Season) %>%
           distinct() %>%
-          mutate(., Year_Cov = as.numeric(as.character(Year_Cov)))
+          mutate(., "Year_Cov" = as.numeric(as.character(Year_Cov)))
 
         new_cov_dat <- new_cov_dat %>%
             left_join(., match_year_cov)
@@ -1808,7 +1808,7 @@ make_new_catch_data<- function(vast_fit = vast_fit, climate_scenario = climate_s
     match_year_cov <- vast_fit$covariate_data %>%
       dplyr::select(., Year, Year_Cov, Season) %>%
       distinct() %>%
-      mutate(., Year_Cov = as.numeric(as.character(Year_Cov)))
+      mutate(., "Year_Cov" = as.numeric(as.character(Year_Cov)))
 
     
     new_cov_dat <- new_cov_dat %>%
@@ -3197,12 +3197,12 @@ get_vast_covariate_effects <- function(vast_fit, params_plot, params_plot_levels
   
   for (i in seq_along(params_plot)) {
     if (params_plot[i] %in% labels(terms(vast_fit$X1_formula))) {
-      pred_dat_temp_X1 <- data.frame(Effect.fit_model(focal.predictors = params_plot[i], mod = vast_fit, which_formula = "X1", xlevels = params_plot_levels, pad_values = effects_pad_values)) %>%
+      pred_dat_temp_X1 <- data.frame(Effect.fit_model_aja(focal.predictors = params_plot[i], mod = vast_fit, which_formula = "X1", xlevels = params_plot_levels, pad_values = effects_pad_values)) %>%
         mutate(., Lin_pred = "X1")
     }
     
     if(params_plot[i] %in% labels(terms(vast_fit$X2_formula))){
-      pred_dat_temp_X2 <- data.frame(Effect.fit_model(focal.predictors = params_plot[i], mod = vast_fit, which_formula = "X2", xlevels = params_plot_levels, pad_values = effects_pad_values)) %>% 
+      pred_dat_temp_X2 <- data.frame(Effect.fit_model_aja(focal.predictors = params_plot[i], mod = vast_fit, which_formula = "X2", xlevels = params_plot_levels, pad_values = effects_pad_values)) %>% 
       mutate(., Lin_pred = "X2")
     }
     
