@@ -1785,8 +1785,9 @@ make_new_cov_data<- function(vast_fit = vast_fit, climate_scenario = climate_sce
         
         # Make sure we have the right "year" index
         match_year_cov <- vast_fit$covariate_data %>%
-            dplyr::select(., Year, Year_Cov, Season) %>%
-            distinct()
+          dplyr::select(., Year, Year_Cov, Season) %>%
+          distinct() %>%
+          mutate(., Year_Cov = levels(Year_Cov))
 
         new_cov_dat <- new_cov_dat %>%
             left_join(., match_year_cov)
@@ -1803,9 +1804,12 @@ make_new_catch_data<- function(vast_fit = vast_fit, climate_scenario = climate_s
   new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
     
     # Make sure we have the right "year" index
-    match_year_cov <- vast_fit$covariate_data %>%
-            dplyr::select(., Year, Year_Cov, Season) %>%
-            distinct()
+    # Make sure we have the right "year" index
+        match_year_cov <- vast_fit$covariate_data %>%
+          dplyr::select(., Year, Year_Cov, Season) %>%
+          distinct() %>%
+          mutate(., Year_Cov = levels(Year_Cov))
+
     
     new_cov_dat <- new_cov_dat %>%
       left_join(., match_year_cov)
