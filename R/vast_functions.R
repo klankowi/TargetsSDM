@@ -3196,12 +3196,12 @@ get_vast_covariate_effects <- function(vast_fit, params_plot, params_plot_levels
   x2_rescale <- function(x) exp(x)
   
   for (i in seq_along(params_plot)) {
-    if (params_plot[i] %in% labels(terms(vast_fit$X1_formula))) {
+    if (any(grepl(params_plot[i] %in% labels(terms(vast_fit$X1_formula))))) {
       pred_dat_temp_X1 <- data.frame(Effect.fit_model_aja(focal.predictors = params_plot[i], mod = vast_fit, which_formula = "X1", xlevels = params_plot_levels, pad_values = effects_pad_values)) %>%
         mutate(., Lin_pred = "X1")
     }
     
-    if(params_plot[i] %in% labels(terms(vast_fit$X2_formula))){
+    if(any(grepl(params_plot[i] %in% labels(terms(vast_fit$X2_formula))))){
       pred_dat_temp_X2 <- data.frame(Effect.fit_model_aja(focal.predictors = params_plot[i], mod = vast_fit, which_formula = "X2", xlevels = params_plot_levels, pad_values = effects_pad_values)) %>% 
       mutate(., Lin_pred = "X2")
     }
