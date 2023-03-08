@@ -1856,7 +1856,7 @@ project_model_aja<- function (x, what, n_proj = NULL, n_samples, uncert_res, new
     # n_proj = max(new_covariate_data$Year) - max(x$covariate_data$Year)
     # extrapolation_list = x$extrapolation_list
     # input_grid = x$extrapolation_list$Data_Extrap
-
+    reload_model(x)
     Obj = x$tmb_list$Obj
     Sdreport = x$parameter_estimates$SD
     if (is.null(new_covariate_data)) {
@@ -4957,6 +4957,7 @@ create_DHARMa <- function ( simulatedResponse, observedResponse, fittedPredicted
 plot_DHARMa_res<- function(n_samples, fit, response_units =  NULL, out_dir){
 
     # Extracting objects from fitted model
+    reload_model(fit)
     Obj = fit$tmb_list$Obj
     n_g_orig = Obj$env$data$n_g
     Obj$env$data$n_g = 0
