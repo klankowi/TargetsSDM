@@ -3209,10 +3209,12 @@ get_vast_covariate_effects <- function(vast_fit, params_plot, params_plot_levels
     if(exists("pred_dat_temp_X1") & !exists("pred_dat_temp_X2")){
       pred_dat_out_temp <- pred_dat_temp_X1
       rm(pred_dat_temp_X1)
-    } else if(!exists("pred_dat_temp_X1") & exists("pred_dat_temp_X2")){
+    }
+    if(!exists("pred_dat_temp_X1") & exists("pred_dat_temp_X2")){
       pred_dat_out_temp <- pred_dat_temp_X2
       rm(pred_dat_temp_X2)
-    } else if(exists("pred_dat_temp_X1") & exists("pred_dat_temp_X2")) {
+    }
+    if(exists("pred_dat_temp_X1") & exists("pred_dat_temp_X2")) {
       pred_dat_out_temp <- bind_rows(pred_dat_temp_X1, pred_dat_temp_X2)
       rm(pred_dat_temp_X1)
       rm(pred_dat_temp_X2)
@@ -3224,6 +3226,9 @@ get_vast_covariate_effects <- function(vast_fit, params_plot, params_plot_levels
       pred_dat_out <- bind_rows(pred_dat_out, pred_dat_out_temp)
     }
   }
+  pred_dat_out <- pred_dat_out %>%
+    pivot_longer(., !c(fit, se, lower, upper, Lin_pred), names_to = "Covariate", values_to = "Value") %>%
+    drop_na()
   saveRDS(pred_dat_out, file = paste(out_dir, "/", nice_category_names, "_covariate_effects.rds", sep = ""))
   return(pred_dat_out)
 }
