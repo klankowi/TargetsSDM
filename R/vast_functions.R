@@ -3235,55 +3235,57 @@ get_vast_covariate_effects <- function(vast_fit, params_plot, params_plot_levels
 }
 
 
-plot_vast_covariate_effects <- function(vast_covariate_effects, vast_fit, nice_category_names, out_dir, ...) {
-  if (FALSE) {
-    tar_load(vast_covariate_effects)
-    vast_covariate_effects <- pred_dat_out
-    tar_load(vast_fit)
-    nice_category_names <- "American lobster"
-    plot_rows <- 2
-    res_root <- "/Users/aallyn/Library/CloudStorage/Box-Box/Mills Lab/Projects/sdm_workflow/targets_output/"
-    out_dir <- paste0(res_root, "tables")
-  }
-
-  # Some reshaping...
-  names_stay <- c("fit", "se", "lower", "upper", "Lin_pred")
-  vast_cov_eff_l <- vast_covariate_effects %>%
-    pivot_longer(., names_to = "Variable", values_to = "Covariate_Value", -{{ names_stay }}) %>%
-    drop_na(Covariate_Value)
-
-  # Plotting time...
-  # Need y max by linear predictors...
-  ylim_dat <- vast_cov_eff_l %>%
-    group_by(., Lin_pred, Variable) %>%
-    summarize(.,
-      "Min" = min(lower, na.rm = TRUE),
-      "Max" = max(upper, na.rm = TRUE)
-    )
-
-  plot_out <- ggplot() +
-    geom_ribbon(data = vast_cov_eff_l, aes(x = Covariate_Value, ymin = lower, ymax = upper), fill = "#bdbdbd") +
-    geom_line(data = vast_cov_eff_l, aes(x = Covariate_Value, y = fit)) +
-    xlab("Scaled covariate value") +
-    ylab("Linear predictor fitted value") +
-    facet_grid(Lin_pred ~ Variable, scales = "free") +
-    theme_bw() +
-    theme(strip.background = element_blank())
-
-  # Add in sample rug...
-  names_keep <- unique(vast_cov_eff_l$Variable)
-  samp_dat <- vast_fit$covariate_data %>%
-    dplyr::select({{ names_keep }}) %>%
-    gather(., "Variable", "Covariate_Value")
-
-  plot_out2 <- plot_out +
-    geom_rug(data = samp_dat, aes(x = Covariate_Value))
-
-  # Save and return it
-  ggsave(plot_out2, filename = paste(out_dir, "/", nice_category_names, "_covariate_effects.jpg", sep = ""))
-  return(plot_out2)
+plot_vast_covariate_effects <- function (vast_covariate_effects, vast_fit, nice_category_names, 
+    out_dir, ...) 
+{
+    if (FALSE) {
+        tar_load(vast_covariate_effects_Offshore_hake_full_69)
+        vast_covariate_effects<- vast_covariate_effects_Offshore_hake_full_69
+        tar_load(vast_fit_Offshore_hake_full_69)
+        vast_fit<- vast_fit_Offshore_hake_full_69
+        nice_category_names <- "American lobster"
+        plot_rows <- 2
+        res_root <- "/Users/aallyn/Library/CloudStorage/Box-Box/Mills Lab/Projects/sdm_workflow/targets_output/"
+        out_dir <- paste0(res_root, "tables")
+    }
+    names_stay <- c("fit", "se", "lower", "upper", "Lin_pred")
+    # vast_cov_eff_l <- vast_covariate_effects %>% pivot_longer(.,
+    #     names_to = "Variable", values_to = "Covariate_Value",
+    #     -{
+    #         {
+    #             names_stay
+    #         }
+    #     }) %>% drop_na(Covariate_Value)
+    vast_cov_eff_l <- vast_covariate_effects %>%
+        drop_na(Value)
+    # ylim_dat <- vast_cov_eff_l %>% group_by(., Lin_pred, Variable) %>%
+    #     summarize(., Min = min(lower, na.rm = TRUE), Max = max(upper,
+    #         na.rm = TRUE))
+    ylim_dat <- vast_cov_eff_l %>%
+        group_by(., Lin_pred, Covariate) %>%
+        summarize(., Min = min(lower, na.rm = TRUE), Max = max(upper, na.rm = TRUE))
+    
+    plot_out <- ggplot() +
+        geom_ribbon(data = vast_cov_eff_l, aes(x = Value, ymin = lower, ymax = upper), fill = "#bdbdbd") +
+        geom_line(data = vast_cov_eff_l, aes(x = Value, y = fit)) +
+        xlab("Scaled covariate value") +
+        ylab("Linear predictor fitted value") +
+        facet_grid(Lin_pred ~ Covariate, scales = "free") +
+        theme_bw() +
+        theme(strip.background = element_blank())
+    
+    names_keep <- unique(vast_cov_eff_l$Covariate)
+    samp_dat <- vast_fit$covariate_data %>% dplyr::select({
+        {
+            names_keep
+        }
+    }) %>% gather(., "Covariate", "Value")
+    plot_out2 <- plot_out +
+        geom_rug(data = samp_dat, aes(x = Value))
+    ggsave(plot_out2, filename = paste(out_dir, "/", nice_category_names, 
+        "_covariate_effects.jpg", sep = ""))
+    return(plot_out2)
 }
-
 ######
 ## Plot samples, knots and mesh
 ######
