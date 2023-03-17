@@ -1947,7 +1947,7 @@ project_model_aja<- function (x, what, n_proj = NULL, n_samples, uncert_res, new
         replace = TRUE), units(x$data_list$b_i)))
     v_i = c(x$data_frame$v_i, rep(0, n_proj_obs))
     a_i = c(x$data_list$a_i, as_units(rep(mean(x$data_frame$a_i), 
-        n_proj_obs), units(fit$data_list$a_i)))
+        n_proj_obs), units(x$data_list$a_i)))
     PredTF_i = c(x$data_list$PredTF_i, rep(1, n_proj_obs))
     c_iz = rbind(matrix(x$data_list$c_iz), matrix(0, nrow = n_proj_obs))
     proj_t = x$data_list$n_t + seq_len(n_proj)
