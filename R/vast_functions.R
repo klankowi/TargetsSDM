@@ -1961,7 +1961,7 @@ project_model_aja<- function (x, what, n_proj = NULL, n_samples, uncert_res, new
             X2config_cp = x$X2config_cp, catchability_data = new_catchability_data, 
             Q1config_k = x$Q1config_k, Q2config_k = x$Q2config_k, 
             Q1_formula = x$Q1_formula, Q2_formula = x$Q2_formula, 
-            build_model = FALSE, working_dir = working_dir, input_grid = input_grid, extrapolation_list = extrapolation_list, spatial_list = proj_spatial)
+            build_model = FALSE, working_dir = working_dir, input_grid = input_grid, extrapolation_list = extrapolation_list, spatial_list = spatial_list)
     }
     else {
         x1 = fit_model(settings = x$settings, Lat_i = Lat_i, 
@@ -2023,7 +2023,7 @@ project_model_aja<- function (x, what, n_proj = NULL, n_samples, uncert_res, new
                 Q1config_k = x$Q1config_k, Q2config_k = x$Q2config_k, 
                 Q1_formula = x$Q1_formula, Q2_formula = x$Q2_formula, 
                 run_model = FALSE, Parameters = ParList1, working_dir = working_dir, 
-                input_grid = input_grid, extrapolation_list = extrapolation_list, spatial_list = proj_spatial)
+                input_grid = input_grid, extrapolation_list = extrapolation_list, spatial_list = spatial_list)
         }
         else {
             x2 = fit_model(settings = x$settings, Lat_i = Lat_i, 
