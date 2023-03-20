@@ -2226,135 +2226,256 @@ project_model_aja<- function (x, what, n_proj = NULL, n_samples, uncert_res, new
 #' @return A dataframe with location and time information for each sample in `new_projection_data` and the projected \code{what} output variable prob results.
 #'
 #' @export
-summary.sim_results <- function(vast_fit, sim_obj, what, resp_scale, nice_times = NULL, out_t_scale = NULL, probs = c(0.1, 0.5, 0.9), mean_instead = FALSE, nice_category_names = nice_category_names, climate_scenario = climate_scenario, out_dir) {
-  if (FALSE) {
-    tar_load(vast_fit)
-    tar_load(vast_projections)
-    sim_obj <- vast_projections
-    what <- "Index_ctl"
-    nice_times <- nice_times
-    out_t_scale <- "annual"
-    probs <- c(0.1, 0.5, 0.9)
-    mean_instead <- FALSE
-    nice_category_names <- nice_category_names
-    climate_scenario <- climate_scenario
-    out_dir <- paste0(res_root, "prediction_df")
+summary.sim_results<- function (vast_fit, sim_obj, resp_scale, nice_times = NULL, out_t_scale = NULL, nice_category_names = nice_category_names, climate_scenario = climate_scenario, 
+    out_dir) {
+    if (FALSE) {
+        # tar_load(vast_fit)
+        # tar_load(vast_projections)
+        # sim_obj <- vast_projections
+        # what <- "Index_ctl"
+        # nice_times <- nice_times
+        # out_t_scale <- "annual"
+        # probs <- c(0.1, 0.5, 0.9)
+        # mean_instead <- FALSE
+        # nice_category_names <- nice_category_names
+        # climate_scenario <- climate_scenario
+        # out_dir <- paste0(res_root, "prediction_df")
+        
+        # Capelin
+        date_dir<- here::here("2023-02-17/Capelin_BC/")
+        vast_fit = fit_full
+        sim_obj = uncert_res_full
+        resp_scale = "raw"
+        nice_times <- nice_times
+        out_t_scale = NULL
+        probs = c(0.1, 0.5, 0.9)
+        mean_instead = FALSE
+        nice_category_names = "Capelin_Random"
+        climate_scenario = climate_scenario = paste0("gfdl", "_full")
+        out_dir = date_dir
 
-    vast_fit = fit
-    sim_obj = uncert_res[[1]]
-    what = "Index_ctl"
-    nice_times = seq(from = 1, to = 348)
-    out_t_scale = NULL
-    probs = c(0.1, 0.5, 0.9)
-    mean_instead = FALSE
-    nice_category_names = "Atlantic cod"
-    climate_scenario = "SSP5_85_mean"
-    out_dir = date_dir
-  }
-  
-  time_ind <- seq(from = 1, to = length(nice_times))
-  time_labels <- nice_times
-  index_regions_ind <- seq(from = 1, to = vast_fit$data_list$n_l)
-  index_regions <- vast_fit$settings$strata.limits$STRATA[index_regions_ind]
-  categories_ind <- seq(from = 1, to = vast_fit$data_list$n_c)
-  grid_ind <- seq(from = 1, to = vast_fit$data_list$n_g)
-  for (i in seq_along(sim_obj)) {
-    if (what == "Index_ctl") {
-      temp_array <- array(unlist(sim_obj[[i]][which(names(sim_obj[[i]]) ==
-        "Index_ctl")]),
-      dim = c(unlist(vast_fit$data_list[c("n_c")]),
-        n_t = length(nice_times), unlist(vast_fit$data_list[c("n_l")])
-      ),
-      dimnames = list(
-        categories_ind, time_labels,
-        index_regions
-      )
-      )
-      temp_df <- data.frame(aperm(temp_array, c(2, 3, 1)))
-      colnames(temp_df) <- gsub(".1", "", colnames(temp_df))
-      temp_df$Sim_Scenario <- rep(paste0("Sim_", i), nrow(temp_df))
-      temp_df$Time <- nice_times
-      temp_df[, 1] <- ifelse(temp_df[, 1] == 0, NA, temp_df[,1])
-      temp_df <- na.omit(temp_df)
-      if (i == 1) {
-        res_out <- temp_df
-      } else {
-        res_out <- bind_rows(res_out, temp_df)
-      }
+        # ## Cod -- COG is off...
+        # date_dir <- "~/GitHub/mixedmod_projections/2022-10-25/Cod_BC/"
+        # vast_fit = readRDS(paste0(date_dir, "SpST_mod_fit.rds"))
+        # sim_obj = readRDS(file = paste0(date_dir, "SpST", "_random_ProjectionsList.rds"))
+        # resp_scale = "raw"
+        # nice_times <- as.Date(c(paste0(seq(from = 1985, to = 2100, by = 1), "-03-16"), paste0(seq(from = 1985, to = 2100, by = 1), "-07-16"), paste0(seq(from = 1985, to = 2100, by = 1), "-10-16")))
+        # nice_times <- nice_times[order(nice_times)]
+        # out_t_scale = NULL
+        # nice_category_names = paste0("Cod_", "Base_None")
+        # climate_scenario = paste0("EnvOnly_Base_5thpercentile", "_SSP5_85")
+        # out_dir = date_dir
     }
     
-    if (what == "D_gct") {
-      temp_array <- array(unlist(sim_obj[[i]][which(names(sim_obj[[i]]) ==
-        "D_gct")]), dim = c(unlist(vast_fit$data_list[c("n_g")]), (vast_fit$data_list[c("n_c")]), n_t = length(nice_times)), dimnames = list(
-        grid_ind,
-        categories_ind, time_labels
-      ))
-    
-      temp_df <- data.frame(aperm(temp_array, c(1, 3, 2)))
-      olnames(temp_df) <- nice_times
-      temp_df$Lat <- vast_fit$spatial_list$latlon_g[, "Lat"]
-      temp_df$Lon <- vast_fit$spatial_list$latlon_g[, "Lon"]
-      temp_df <- temp_df %>%
-        distinct() %>%
-        pivot_longer(., !c(Lat, Lon), names_to = "Time", values_to = "D_gct") %>%
-        arrange(Time, Lat, Lon)
-      temp_df$Sim_Scenario <- paste0("Sim_", i)
-            if (i == 1) {
-                res_out <- temp_df
-            } else {
-                res_out <- bind_rows(res_out, temp_df)
-            }
-    }
-  }
-  
-  if (what == "Index_ctl") {
-    if (!is.null(out_t_scale)) {
-      res_out <- res_out %>%
-        pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index") %>%
-        mutate(., Time = ymd(as.numeric(format(Time, "%Y")), truncated = 2L))
+    time_ind <- seq(from = 1, to = length(nice_times))
+    time_labels <- nice_times
+    index_regions_ind <- seq(from = 1, to = vast_fit$data_list$n_l)
+    index_regions <- vast_fit$settings$strata.limits$STRATA[index_regions_ind]
+    categories_ind <- seq(from = 1, to = vast_fit$data_list$n_c)
+    grid_ind <- seq(from = 1, to = vast_fit$data_list$n_g)
 
-      if (resp_scale == "log") {
-        res_out <- res_out %>%
-          mutate(., Index = log(Index)) %>%
-          group_by(., Time, Region) %>%
-          summarise(Prob_0.5 = quantile(Index, probs = 0.5), Prob_0.1 = quantile(Index, probs = 0.1), Prob_0.9 = quantile(Index, probs = 0.9))
-      } else {
-        res_out <- res_out %>%
-          group_by(., Time, Region) %>%
-          summarise(Prob_0.5 = quantile(Index, probs = 0.5), Prob_0.1 = quantile(Index, probs = 0.1), Prob_0.9 = quantile(Index, probs = 0.9))
-      }
-    } else {
-      res_out <- res_out %>% pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index")
-      if (resp_scale == "log") {
-        res_out <- res_out %>%
-          mutate(., Index = log(Index)) %>%
-          group_by(., Time, Region) %>%
-          summarise(Prob_0.5 = quantile(Index, probs = 0.5), Prob_0.1 = quantile(Index, probs = 0.1), Prob_0.9 = quantile(Index, probs = 0.9))
-      } else {
-        res_out <- res_out %>%
-          group_by(., Time, Region) %>%
-          summarise(Prob_0.5 = quantile(Index, probs = 0.5), Prob_0.1 = quantile(Index, probs = 0.1), Prob_0.9 = quantile(Index, probs = 0.9))
-      }
+    for (i in seq_along(sim_obj)) {
+
+        if(FALSE){
+            # Checking sim_obj 
+            summary(sim_obj[[100]][["Index_ctl"]])
+        }
+
+        # Going to want the Index...
+        ind_array <- array(unlist(sim_obj[[i]][which(names(sim_obj[[i]]) ==
+            "Index_ctl")]),
+            dim = c(unlist(vast_fit$data_list[c("n_c")]), n_t = length(nice_times), unlist(vast_fit$data_list[c("n_l")])),
+            dimnames = list(
+                categories_ind, time_labels,
+                index_regions
+            )  
+        )
+        ind_df <- data.frame(aperm(ind_array, c(2, 3, 1)))
+        colnames(ind_df) <- gsub(".1", "", colnames(ind_df))
+        ind_df$Sim_Scenario <- rep(paste0("Sim_", i), nrow(ind_df))
+        ind_df$Time <- nice_times
+        # ind_df[, 1] <- ifelse(ind_df[, 1] == 0, NA, ind_df[, 1])
+        # ind_df <- na.omit(ind_df)
+        ind_df <- ind_df %>%
+            pivot_longer(., !c(
+                Sim_Scenario,
+                Time
+            ), names_to = "Region", values_to = "Index")
+
+        # Check
+        if(FALSE){
+            true <- vast_fit$Report$Index_ctl
+            str(true)
+            str(ind_df)
+        }
+        
+        # Density
+        dens_array <- array(unlist(sim_obj[[i]][which(names(sim_obj[[i]]) ==
+            "D_gct")]),
+            dim = c(unlist(vast_fit$data_list[c("n_g")]), (vast_fit$data_list[c("n_c")]), n_t = length(nice_times)),
+            dimnames = list(grid_ind, categories_ind, time_labels)
+        )
+        dens_df <- data.frame(aperm(dens_array, c(1, 3, 2)))
+        colnames(dens_df) <- nice_times
+        dens_df$Lat <- vast_fit$spatial_list$latlon_g[, "Lat"]
+        dens_df$Lon <- vast_fit$spatial_list$latlon_g[, "Lon"]
+        dens_df <- dens_df %>%
+            pivot_longer(.,
+                !c(Lat, Lon),
+                names_to = "Time", values_to = "D_gct"
+            ) %>%
+            arrange(Time, Lat, Lon)
+        dens_df$Time <- as.Date(dens_df$Time)
+        dens_df$Sim_Scenario <- paste0("Sim_", i)
+
+        # Check
+        if(FALSE){
+            true <- vast_fit$Report$D_gct
+            str(true)
+            str(dens_df)
+        }
+
+        # Center of gravity
+        cog_array <- array(unlist(sim_obj[[i]][which(names(sim_obj[[i]]) ==
+            "mean_Z_ctm")]),
+        dim = c(unlist(vast_fit$data_list[c("n_c")]), n_t = length(nice_times), 2),
+        dimnames = list(
+            categories_ind, time_labels,
+            c("Lon", "Lat")
+        )
+        )
+        cog_true_df <- data.frame(aperm(cog_array, c(2, 3, 1)))
+        names(cog_true_df)<- c("Eastings", "Northings")
+        cog_true_df$Time<- nice_times
+        cog_true_df$Time <- as.Date(cog_true_df$Time)
+        cog_true_df$Sim_Scenario <- paste0("Sim_", i)
+
+        cog_df <- cog_from_dens(vast_fit = vast_fit, proj_dens = dens_df, proj_ind = ind_df)
+
+        # Check
+        if(FALSE){
+            true_lon <- vast_fit$Report$mean_Z_ctm[,,1]
+            str(true_lon)
+            true_lat<- vast_fit$Report$mean_Z_ctm[,,2]
+            str(true_lat)
+            str(cog_df)
+        }
+
+        # Effective area
+        eff_area_array <- array(unlist(sim_obj[[i]][which(names(sim_obj[[i]]) ==
+            "effective_area_ctl")]),
+            dim = c(unlist(vast_fit$data_list[c("n_c")]), n_t = length(nice_times), unlist(vast_fit$data_list[c("n_l")])),
+            dimnames = list(
+                categories_ind, time_labels,
+                index_regions
+            )  
+        )
+        eff_area_true_df <- data.frame(aperm(eff_area_array, c(2, 3, 1)))
+        colnames(eff_area_true_df) <- gsub(".1", "", colnames(eff_area_true_df))
+        eff_area_true_df$Sim_Scenario <- rep(paste0("Sim_", i), nrow(eff_area_true_df))
+        eff_area_true_df$Time <- nice_times
+        # ind_df[, 1] <- ifelse(ind_df[, 1] == 0, NA, ind_df[, 1])
+        # ind_df <- na.omit(ind_df)
+        eff_area_true_df <- eff_area_true_df %>%
+            pivot_longer(., !c(
+                Sim_Scenario,
+                Time
+            ), names_to = "Region", values_to = "Eff_Area")
+
+        
+        eff_area_df <- eff_area_from_dens(vast_fit = vast_fit, proj_dens = dens_df, proj_ind = ind_df)
+
+        # Check
+        if (FALSE) {
+            vast_fit$Report$effective_area_ctl
+            str(true_eff_area)
+            str(eff_area_df)
+        }
+        
+        if(resp_scale == "log"){
+            ind_df$Index <- log(ind_df$Index)
+            dens_df$D_gct <- log(dens_df$D_gct)
+        }
+        
+        if (i == 1) {
+            res_out_ind <- ind_df
+            res_out_dens <- dens_df
+            res_out_cog <- cog_df
+            res_out_cog_true<- cog_true_df
+            res_out_eff_area <- eff_area_df
+            res_out_eff_area_true<- eff_area_true_df
+        } else {
+            res_out_ind <- bind_rows(res_out_ind, ind_df)
+            res_out_dens <- bind_rows(res_out_dens, dens_df)
+            res_out_cog <- bind_rows(res_out_cog, cog_df)
+            res_out_cog_true <- bind_rows(res_out_cog_true, cog_true_df)
+            res_out_eff_area <- bind_rows(res_out_eff_area, eff_area_df)
+            res_out_eff_area_true<- bind_rows(res_out_eff_area_true, eff_area_true_df)
+        }
     }
-  }
-  if (what == "D_gct") {
-    if (!is.null(out_t_scale)) {
-      res_out <- res_out %>% pivot_longer(., !c(Sim_Scenario, Time), names_to = "Region", values_to = "Index") %>%
-      mutate(., Time = ymd(as.numeric(format(Time, "%Y")), truncated = 2L))
-    } else {
-      if (resp_scale == "log") {
-        res_out <- res_out %>% mutate(., Density = log(D_gct)) %>% 
-        group_by(., Time, Lat, Lon) %>% summarise(Prob_0.5 = quantile(Density, probs = 0.5), Prob_0.1 = quantile(Density, probs = 0.1), Prob_0.9 = quantile(Density, probs = 0.9))
-      } else {
-        res_out <- res_out %>% group_by(., Time, Lat, Lon) %>% 
-        summarise(Prob_0.5 = quantile(D_gct, probs = 0.5), Prob_0.1 = quantile(D_gct, probs = 0.1), Prob_0.9 = quantile(D_gct, probs = 0.9))
-      }
-    }
-  }
-  
-  saveRDS(res_out, file = paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_", what, ".rds"))
-  return(res_out)
+
+    # Calculate summaries across all runs
+    res_out_ind <- res_out_ind %>%
+        group_by(., Time, Region) %>%
+        summarise(
+            Prob_0.5 = quantile(Index, probs = 0.5, na.rm = TRUE),
+            Prob_0.1 = quantile(Index, probs = 0.1, na.rm = TRUE),
+            Prob_0.9 = quantile(Index, probs = 0.9, na.rm = TRUE)
+        )
+    
+    res_out_dens <- res_out_dens %>%
+        group_by(., Lat, Lon, Time) %>%
+        summarise(
+            Prob_0.5 = quantile(D_gct, probs = 0.5, na.rm = TRUE),
+            Prob_0.1 = quantile(D_gct, probs = 0.1, na.rm = TRUE),
+            Prob_0.9 = quantile(D_gct, probs = 0.9, na.rm = TRUE)
+        )
+    
+    res_out_cog <- res_out_cog %>%
+        group_by(., Time) %>%
+        summarise(
+            Lon_Prob_0.5 = quantile(Mean_Lon, probs = 0.5, na.rm = TRUE),
+            Lon_Prob_0.1 = quantile(Mean_Lon, probs = 0.1, na.rm = TRUE),
+            Lon_Prob_0.9 = quantile(Mean_Lon, probs = 0.9, na.rm = TRUE),
+            Lat_Prob_0.5 = quantile(Mean_Lat, probs = 0.5, na.rm = TRUE),
+            Lat_Prob_0.1 = quantile(Mean_Lat, probs = 0.1, na.rm = TRUE),
+            Lat_Prob_0.9 = quantile(Mean_Lat, probs = 0.9, na.rm = TRUE)
+        )
+    
+    res_out_cog_true<- res_out_cog_true %>%
+        group_by(., Time) %>%
+        summarise(
+            Lon_Prob_0.5 = quantile(Eastings, probs = 0.5, na.rm = TRUE),
+            Lon_Prob_0.1 = quantile(Eastings, probs = 0.1, na.rm = TRUE),
+            Lon_Prob_0.9 = quantile(Eastings, probs = 0.9, na.rm = TRUE),
+            Lat_Prob_0.5 = quantile(Northings, probs = 0.5, na.rm = TRUE),
+            Lat_Prob_0.1 = quantile(Northings, probs = 0.1, na.rm = TRUE),
+            Lat_Prob_0.9 = quantile(Northings, probs = 0.9, na.rm = TRUE)
+        )
+    
+    res_out_eff_area <- res_out_eff_area %>%
+        group_by(., Time, Region) %>%
+        summarise(
+            Prob_0.5 = quantile(Eff_Area, probs = 0.5, na.rm = TRUE),
+            Prob_0.1 = quantile(Eff_Area, probs = 0.1, na.rm = TRUE),
+            Prob_0.9 = quantile(Eff_Area, probs = 0.9, na.rm = TRUE)
+        )
+    
+    res_out_eff_area_true <- res_out_eff_area_true %>%
+        group_by(., Time, Region) %>%
+        summarise(
+            Prob_0.5 = quantile(Eff_Area, probs = 0.5, na.rm = TRUE),
+            Prob_0.1 = quantile(Eff_Area, probs = 0.1, na.rm = TRUE),
+            Prob_0.9 = quantile(Eff_Area, probs = 0.9, na.rm = TRUE)
+        )
+    
+    res_out<- list("Index" = res_out_ind, "Dens" = res_out_dens, "COG" = res_out_cog, "COG_True" = res_out_cog_true, "EffArea" = res_out_eff_area, "EffArea_True" = res_out_eff_area_true)
+ 
+    saveRDS(res_out, file = paste0(out_dir, "/", nice_category_names, 
+        "_", climate_scenario, ".rds"))
+    return(res_out)
 }
+    
 
 match_strata_fn_aja <- function(points, strata_dataframe, index_shapes) {
   if (FALSE) {
