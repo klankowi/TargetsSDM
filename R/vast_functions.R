@@ -1784,6 +1784,10 @@ make_new_cov_data<- function(vast_fit = vast_fit, climate_scenario = climate_sce
         new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
         
         # Make sure we have the right "year" index
+        # match_year_cov <- vast_fit$covariate_data %>%
+        #   dplyr::select(., Year, Year_Cov, Season) %>%
+        #   distinct() %>%
+        #   mutate(., "Year_Cov" = as.numeric(as.character(Year_Cov)))
         match_year_cov <- vast_fit$covariate_data %>%
           dplyr::select(., Year, Year_Cov, Season) %>%
           distinct() %>%
@@ -1797,11 +1801,17 @@ make_new_cov_data<- function(vast_fit = vast_fit, climate_scenario = climate_sce
 
 make_new_catch_data<- function(vast_fit = vast_fit, climate_scenario = climate_scenario){
 
+  if(FALSE){
+    climate_scenario = "CMIP6_SSP5_85_mean"
+    tar_load(vast_fit_Offshore_hake_full_69)
+    vast_fit = vast_fit_Offshore_hake_full_69
+  }
+
    # Read in data
    cmip6_dat <- read.csv(paste0(here::here("data/predict/"), climate_scenario, "_dat.csv"))
    new_cov_dat <- cmip6_dat %>%
-            dplyr::select(., Year, Year_Cov, Season, Depth, BT_seasonal, Lat, Lon)
-  new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
+     dplyr::select(., Year, Year_Cov, Season, Depth, BT_seasonal, Lat, Lon)
+   new_cov_dat$Season <- factor(new_cov_dat$Season, levels = levels(vast_fit$covariate_data$Season))
     
     # Make sure we have the right "year" index
     # Make sure we have the right "year" index
@@ -1817,7 +1827,9 @@ make_new_catch_data<- function(vast_fit = vast_fit, climate_scenario = climate_s
      # Explicit catchability data
      new_catch_dat <- new_cov_dat %>%
        dplyr::select(., Year, Year_Cov, Season, Lat, Lon) %>%
-       mutate(., Survey = factor("NMFS", levels = c("NMFS", "DFO")))
+       mutate(.,
+         Survey = factor("NMFS", levels = c("NMFS", "DFO")))
+      new_catch_dat$Year_Cov<- factor(new_catch_dat$Year_Cov, levels = unique(new_cov_dat$Year_Cov))
      
      return(new_catch_dat)
 
