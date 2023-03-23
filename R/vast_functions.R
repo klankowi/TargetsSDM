@@ -1842,10 +1842,10 @@ make_new_spatial_info<- function(vast_fit = vast_fit, new_cov_data = new_cov_dat
   return(proj_spatial)
 }
 
-project_model_aja<- function (x, what, n_proj = NULL, n_samples, uncert_res, new_covariate_data = NULL, 
+project_model_aja<- function (x, what, n_proj = NULL, n_samples, uncert_res = NULL, new_covariate_data = NULL, 
     new_catchability_data = NULL, extrapolation_list = NULL, 
     input_grid = NULL, spatial_list = NULL, historical_uncertainty = "both", 
-    seed = 123456, working_dir = paste0(getwd(), "/"), ...) 
+    seed = 123456, working_dir = paste0(getwd(), "/"), out_dir = NULL, nice_category_names = NULL, climate_scenario = NULL, ...) 
 {
     if (FALSE) {
         x = fit
@@ -2060,8 +2060,9 @@ project_model_aja<- function (x, what, n_proj = NULL, n_samples, uncert_res, new
         gc()
     }
     if (n_samples == 1) {
-        out = out[[1]]
+      out = out[[1]]
     }
+    saveRDS(out, file = paste0(out_dir, "/", nice_category_names, "_", climate_scenario, "_projections.rds"))
     return(out)
 }
 
