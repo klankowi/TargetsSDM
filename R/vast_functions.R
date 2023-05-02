@@ -18,6 +18,7 @@ pred_template_load <- function(pred_template_dir) {
   return(pred_template_df)
 }
 
+
 high_res_load <- function(high_res_dir) {
   high_res <- raster(paste(high_res_dir, "HighResTemplate.grd", sep = "/"))
   return(high_res)
@@ -3191,23 +3192,25 @@ plot_vast_projected_index <- function(vast_projections, year_stop = NULL, index_
 #'
 #' @rawNamespace S3method(effects::Effect, fit_model)
 #' @export
-Effect.fit_model_aja <- function(focal.predictors, mod, which_formula = "X1", pad_values = c(), ...) {
-  if (FALSE) {
-    tar_load(vast_fit)
-    focal.predictors <- c("Depth", "SST_seasonal", "BT_seasonal")
-    mod <- fit_base
-    which_formula <- "X1"
-    xlevels <- 100
-    pad_values <- c(0)
-
-    covariate_data_full <- mod$effects$covariate_data_full
-    catchability_data_full <- mod$effects$catchability_data_full
-  }
+Effect.fit_model_aja <- function(focal.predictors, mod, which_formula = "X1", pad_values = c(), 
+                                 category_to_use, ncat,
+                                 ...) {
+  # if (FALSE) {
+  #   tar_load(vast_fit)
+  #   focal.predictors <- c("Depth", "SST_seasonal", "BT_seasonal")
+  #   mod <- fit_base
+  #   which_formula <- "X1"
+  #   xlevels <- 100
+  #   pad_values <- c(1)
+  # 
+  #   covariate_data_full <- mod$effects$covariate_data_full
+  #   catchability_data_full <- mod$effects$catchability_data_full
+  # }
 
   # Error checks
-  if (mod$data_list$n_c > 1 & which_formula %in% c("X1", "X2")) {
-    stop("`Effect.fit_model` is not currently designed for multivariate models using density covariates")
-  }
+  #if (mod$data_list$n_c > 1 & which_formula %in% c("X1", "X2")) {
+  #  stop("`Effect.fit_model` is not currently designed for multivariate models using density covariates")
+  #}
   if (!all(c("covariate_data_full", "catchability_data_full") %in% ls(.GlobalEnv))) {
     stop("Please load `covariate_data_full` and `catchability_data_full` into global memory")
   }
@@ -3238,10 +3241,14 @@ Effect.fit_model_aja <- function(focal.predictors, mod, which_formula = "X1", pa
   } else {
     stop("Check `which_formula` input")
   }
-
+  
+  # Adjust for category to use
   # Extract parameters / covariance
   whichnum <- which(names(mod$parameter_estimates$par) == parname)
+  whichnum <- whichnum[seq(category_to_use, length(whichnum), ncat)]
   mod$parhat <- mod$parameter_estimates$par[whichnum]
+  #mod$parhat <- mod$parhat[seq(category_to_use, length(mod$parhat), ncat)]
+  
   if (is.null(mod$parameter_estimates$SD$cov.fixed)) {
     mod$covhat <- array(0, dim = rep(length(mod$parhat), 2))
   } else {
@@ -3306,25 +3313,27 @@ Effect.fit_model_aja <- function(focal.predictors, mod, which_formula = "X1", pa
   effects::Effect.default(focal.predictors, mod, ..., sources = args)
 }
 
-get_vast_covariate_effects <- function(vast_fit, params_plot, params_plot_levels, effects_pad_values, nice_category_names, out_dir, ...) {
-  if (FALSE) {
-    tar_load(vast_fit)
-    params_plot <- c(
-      "Depth", "SST_seasonal", "BT_seasonal",
-      "SS_seasonal", "BS_seasonal"
-    )
-    params_plot_levels <- 100
-    effects_pad_values <- c(1)
-    nice_category_names <- nice_category_names
-    out_dir <- paste0(res_root, "tables")
-
-    vast_fit = mod_comp_res$Fitted_Mod[[1]]
-    params_plot = c("index")
-    params_plot_levels = 100
-    effects_pad_values = c(1)
-    nice_category_names = "Capelin"
-  }
-  assign("covariate_data_full", vast_fit$effects$covariate_data_full, 
+get_vast_covariate_effects <- function(vast_fit, params_plot, params_plot_levels, effects_pad_values, nice_category_names, out_dir,
+                                       category_to_use, ncat, 
+                                       ...) {
+  # if (FALSE) {
+  #   tar_load(vast_fit)
+  #   params_plot <- c(
+  #     "Depth", "SST_seasonal", "BT_seasonal",
+  #     "SS_seasonal", "BS_seasonal"
+  #   )
+  #   params_plot_levels <- 100
+  #   effects_pad_values <- c(1)
+  #   nice_category_names <- nice_category_names
+  #   out_dir <- paste0(res_root, "tables")
+  # 
+  #   vast_fit = mod_comp_res$Fitted_Mod[[1]]
+  #   params_plot = c("index")
+  #   params_plot_levels = 100
+  #   effects_pad_values = c(1)
+  #   nice_category_names = "Capelin"
+  # }
+  assign("covariate_data_full", vast_fit$effects$covariate_data_full[seq(category_to_use, nrow(vast_fit$effects$covariate_data_full), ncat),], 
         envir = .GlobalEnv)
   assign("catchability_data_full", vast_fit$effects$catchability_data_full, 
         envir = .GlobalEnv)
@@ -3333,12 +3342,25 @@ get_vast_covariate_effects <- function(vast_fit, params_plot, params_plot_levels
   
   for (i in seq_along(params_plot)) {
     if (any(grepl(params_plot[i], labels(terms(vast_fit$X1_formula))))) {
-      pred_dat_temp_X1 <- data.frame(Effect.fit_model_aja(focal.predictors = params_plot[i], mod = vast_fit, which_formula = "X1", xlevels = params_plot_levels, pad_values = effects_pad_values)) %>%
+      pred_dat_temp_X1 <- data.frame(Effect.fit_model_aja(focal.predictors = params_plot[i], 
+                                                          mod = vast_fit, 
+                                                          which_formula = "X1", 
+                                                          xlevels = params_plot_levels, 
+                                                          pad_values = effects_pad_values,
+                                                          category_to_use = category_to_use,
+                                                          ncat = ncat
+                                                          )) %>%
         mutate(., Lin_pred = "X1")
     }
     
     if(any(grepl(params_plot[i], labels(terms(vast_fit$X2_formula))))){
-      pred_dat_temp_X2 <- data.frame(Effect.fit_model_aja(focal.predictors = params_plot[i], mod = vast_fit, which_formula = "X2", xlevels = params_plot_levels, pad_values = effects_pad_values)) %>% 
+      pred_dat_temp_X2 <- data.frame(Effect.fit_model_aja(focal.predictors = params_plot[i], 
+                                                          mod = vast_fit, which_formula = "X2", 
+                                                          xlevels = params_plot_levels, 
+                                                          pad_values = effects_pad_values,
+                                                          category_to_use = category_to_use,
+                                                          ncat = ncat
+                                                          )) %>% 
       mutate(., Lin_pred = "X2")
     }
     
